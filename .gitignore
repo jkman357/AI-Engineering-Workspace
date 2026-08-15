@@ -1,0 +1,8 @@
+.vs/
+.idea/
+**/bin/
+**/obj/
+*.user
+*.suo
+logs/build/*.log
+logs/runtime/*.log
