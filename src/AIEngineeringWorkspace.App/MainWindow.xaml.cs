@@ -20,12 +20,12 @@ public partial class MainWindow : Window
     private readonly Dictionary<FrameworkElement, Point> _moveOrigins = new();
     private bool _closing;
     private bool _showEndpointIds;
+    private bool _workspaceInitialized;
     private int _zCounter = 1;
 
     public MainWindow()
     {
         InitializeComponent();
-        CreateDefaultWorkspace();
 
         _healthTimer = new DispatcherTimer
         {
@@ -41,24 +41,62 @@ public partial class MainWindow : Window
 
         Loaded += (_, _) =>
         {
-            RuntimeLog.Info($"MainWindow loaded. BrowserPaneCount={_browserPanes.Count}; FilePaneCount={_filePanes.Count}; DefaultBrowserUrl='{DefaultBrowserUrl}'; RuntimeLog='{RuntimeLog.CurrentPath}'");
-            _healthTimer.Start();
-            SetWorkspaceStatus("Ready. Drag ⋮⋮ to move panes; drag ◢ to resize; Show IDs exposes routing aliases.");
-            UpdatePaneCounts();
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (!_workspaceInitialized)
+                {
+                    CreateDefaultWorkspaceToFitViewport();
+                    _workspaceInitialized = true;
+                }
+
+                RuntimeLog.Info($"MainWindow loaded. BrowserPaneCount={_browserPanes.Count}; FilePaneCount={_filePanes.Count}; DefaultBrowserUrl='{DefaultBrowserUrl}'; Canvas={WorkspaceCanvas.Width:0}x{WorkspaceCanvas.Height:0}; RuntimeLog='{RuntimeLog.CurrentPath}'");
+                _healthTimer.Start();
+                SetWorkspaceStatus("Ready. Workspace starts maximized and panes fill the available surface. Enter in a Browser URL navigates that pane.");
+                UpdatePaneCounts();
+            }, DispatcherPriority.Loaded);
         };
 
         Closing += (_, _) => ShutdownWorkspace();
     }
 
-    private void CreateDefaultWorkspace()
+    private void CreateDefaultWorkspaceToFitViewport()
     {
-        AddFilePane(GetDefaultFilePath(1), new Point(8, 8), 360, 394);
-        AddFilePane(GetDefaultFilePath(2), new Point(8, 410), 360, 394);
+        var viewportWidth = WorkspaceScrollViewer.ViewportWidth;
+        var viewportHeight = WorkspaceScrollViewer.ViewportHeight;
 
-        AddBrowserPane(new Point(376, 8), 590, 394);
-        AddBrowserPane(new Point(974, 8), 590, 394);
-        AddBrowserPane(new Point(376, 410), 590, 394);
-        AddBrowserPane(new Point(974, 410), 590, 394);
+        if (viewportWidth <= 1)
+        {
+            viewportWidth = Math.Max(1100, WorkspaceScrollViewer.ActualWidth - 8);
+        }
+
+        if (viewportHeight <= 1)
+        {
+            viewportHeight = Math.Max(620, WorkspaceScrollViewer.ActualHeight - 8);
+        }
+
+        var surfaceWidth = Math.Max(1000, viewportWidth - 4);
+        var surfaceHeight = Math.Max(600, viewportHeight - 4);
+        WorkspaceCanvas.Width = surfaceWidth;
+        WorkspaceCanvas.Height = surfaceHeight;
+
+        var margin = PaneGap;
+        var rowHeight = Math.Max(280, (surfaceHeight - (margin * 2) - PaneGap) / 2);
+        var fileWidth = Math.Clamp(surfaceWidth * 0.24, 320, 430);
+        var browserStartX = margin + fileWidth + PaneGap;
+        var browserAreaWidth = surfaceWidth - browserStartX - margin;
+        var browserWidth = Math.Max(420, (browserAreaWidth - PaneGap) / 2);
+        var secondRowY = margin + rowHeight + PaneGap;
+        var secondBrowserX = browserStartX + browserWidth + PaneGap;
+
+        AddFilePane(GetDefaultFilePath(1), new Point(margin, margin), fileWidth, rowHeight);
+        AddFilePane(GetDefaultFilePath(2), new Point(margin, secondRowY), fileWidth, rowHeight);
+
+        AddBrowserPane(new Point(browserStartX, margin), browserWidth, rowHeight);
+        AddBrowserPane(new Point(secondBrowserX, margin), browserWidth, rowHeight);
+        AddBrowserPane(new Point(browserStartX, secondRowY), browserWidth, rowHeight);
+        AddBrowserPane(new Point(secondBrowserX, secondRowY), browserWidth, rowHeight);
+
+        RuntimeLog.Info($"Default workspace auto-fit completed. Viewport={viewportWidth:0}x{viewportHeight:0}; Surface={surfaceWidth:0}x{surfaceHeight:0}; FileWidth={fileWidth:0}; BrowserWidth={browserWidth:0}; RowHeight={rowHeight:0}");
     }
 
     private static string GetDefaultFilePath(int slot)
@@ -331,6 +369,10 @@ public partial class MainWindow : Window
         pane.Width = desiredWidth;
         pane.Height = desiredHeight;
         EnsureCanvasBounds(pane);
+        if (pane is BrowserTile browser)
+        {
+            browser.FitBrowserToPane();
+        }
         SetWorkspaceStatus($"Resized {GetAlias(pane)} to {desiredWidth:0}×{desiredHeight:0}.");
     }
 
@@ -450,7 +492,9 @@ public partial class MainWindow : Window
             pane.SetEndpointIdVisibility(_showEndpointIds);
         }
 
-        ShowIdsButton.Content = _showEndpointIds ? "Hide IDs" : "Show IDs";
+        ShowIdsButton.ToolTip = _showEndpointIds
+            ? "Hide routing endpoint IDs (B1-B8 / F1-F4)"
+            : "Show routing endpoint IDs (B1-B8 / F1-F4)";
         RuntimeLog.Info($"Endpoint ID visibility changed. Visible={_showEndpointIds}; BrowserAliases={string.Join(",", _browserPanes.Select(p => p.Identity.Alias))}; FileAliases={string.Join(",", _filePanes.Select(p => p.Identity.Alias))}");
         SetWorkspaceStatus(_showEndpointIds
             ? "Routing endpoint aliases are visible. B1-B8 = browser; F1-F4 = file."

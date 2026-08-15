@@ -1,15 +1,11 @@
-feat: add unified dynamic panes and endpoint identity in v0.0.5rc01
+docs: clarify MIT license boundary and disclaimer wording in v0.0.6rc02
 
-- replace fixed File-left / Browser-right regions with one unified scrollable workspace surface
-- add drag handles for free pane movement and cross-type File/Browser position swapping
-- add per-pane resize grips with collision-aware right/bottom growth limits
-- preserve dynamic Browser and File pane creation/removal
-- reuse the smallest free Browser display index from B1-B8 after deletion
-- reuse the smallest free File display index from F1-F4 after deletion
-- add stable GUID PaneId identity independent of screen position and display alias
-- add Show IDs / Hide IDs control for B1-B8 and F1-F4 routing endpoint aliases
-- retain Firefox HWND lifecycle ownership, health monitoring and graceful close behavior
-- retain Windows Shell icons and FileDrop file-drag support
-- add MIT LICENSE, SECURITY.md, CHANGELOG.md and release notes
-- add prominent README security/privacy statement that credentials and passwords are not stored or managed
-- retain standard-user, API-free, command-line build/run and diagnostic logging requirements
+- retain v0.0.6rc01 application behavior with no intended functional change
+- keep the standard MIT LICENSE text unchanged
+- rewrite README Disclaimer as practical engineering risk guidance rather than an additional use restriction
+- explicitly state that README guidance does not restrict or modify permissions granted under the MIT License
+- clarify independent evaluation requirements for production, enterprise, medical, safety-critical, regulated, and other high-assurance use
+- state that the project has not been independently validated, certified, or qualified for a specific regulated or safety-critical application
+- reinforce that AI Engineering Workspace does not store, collect, persist, or manage account credentials or passwords
+- clarify that browser authentication/session state remains under the browser profile and that the application does not intentionally access or maintain browser password-manager data
+- update README, SECURITY.md, CHANGELOG, release notes, version metadata, and command-line log version labels to v0.0.6rc02

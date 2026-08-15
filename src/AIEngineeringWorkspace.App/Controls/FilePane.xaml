@@ -100,7 +100,24 @@
                       SelectionMode="Single"
                       MouseDoubleClick="FileListView_MouseDoubleClick"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
-                      PreviewMouseMove="FileListView_PreviewMouseMove">
+                      PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
+                      PreviewMouseMove="FileListView_PreviewMouseMove"
+                      PreviewKeyDown="FileListView_PreviewKeyDown">
+                <ListView.ContextMenu>
+                    <ContextMenu Opened="FileContextMenu_Opened">
+                        <MenuItem x:Name="OpenMenuItem" Header="Open" Click="OpenMenuItem_Click" />
+                        <Separator />
+                        <MenuItem x:Name="CopyMenuItem" Header="Copy" Click="CopyMenuItem_Click" InputGestureText="Ctrl+C" />
+                        <MenuItem x:Name="CutMenuItem" Header="Cut / Move" Click="CutMenuItem_Click" InputGestureText="Ctrl+X" />
+                        <MenuItem x:Name="PasteMenuItem" Header="Paste" Click="PasteMenuItem_Click" InputGestureText="Ctrl+V" />
+                        <Separator />
+                        <MenuItem x:Name="RenameMenuItem" Header="Rename" Click="RenameMenuItem_Click" />
+                        <MenuItem x:Name="DeleteMenuItem" Header="Delete to Recycle Bin" Click="DeleteMenuItem_Click" InputGestureText="Del" />
+                        <Separator />
+                        <MenuItem Header="New Folder" Click="NewFolderMenuItem_Click" />
+                        <MenuItem Header="Refresh" Click="RefreshMenuItem_Click" />
+                    </ContextMenu>
+                </ListView.ContextMenu>
                 <ListView.View>
                     <GridView AllowsColumnReorder="True">
                         <GridViewColumn Header="Name" Width="190">

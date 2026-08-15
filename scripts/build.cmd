@@ -13,7 +13,7 @@ set "LOG=logs\build\build_%STAMP%.log"
 
 > "%LOG%" echo ============================================================
 >>"%LOG%" echo AI Engineering Workspace build
->>"%LOG%" echo Version       : v0.0.5rc01
+>>"%LOG%" echo Version       : v0.0.6rc02
 >>"%LOG%" echo Start         : %DATE% %TIME%
 >>"%LOG%" echo Configuration : %CONFIG%
 >>"%LOG%" echo Solution      : AI-Engineering-Workspace.sln

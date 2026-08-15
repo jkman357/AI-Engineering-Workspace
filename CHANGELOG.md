@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.0.6rc02
+
+- retain v0.0.6rc01 application behavior with no intended functional change
+- clarify that README disclaimer text is practical risk guidance rather than an additional use restriction
+- explicitly state that README guidance does not restrict or modify permissions granted by the MIT License
+- keep the standard MIT `LICENSE` text unchanged
+- clarify that production, enterprise, medical, safety-critical, regulated, and other high-assurance adoption requires independent risk, validation, security, privacy, reliability, regulatory, compliance, and operational evaluation
+- reinforce that the application does not store, collect, persist, or manage user account credentials/passwords and does not intentionally access or maintain browser password-manager data
+
+## v0.0.6rc01
+
+- start the Workspace maximized and auto-fit the default pane layout to the measured viewport
+- add Enter-to-navigate behavior for each docked Browser URL box
+- keep Firefox auto-fitted inside its pane without forcing F11 full-screen mode
+- replace top toolbar text actions with compact icons plus tooltips
+- add File pane Explorer-style context menu operations: Open, Copy, Cut/Move, Paste, Rename, Delete to Recycle Bin, New Folder, Refresh
+- add File pane Ctrl+C / Ctrl+X / Ctrl+V / F2 / Delete shortcuts
+- open files through Windows shell association
+- retain dynamic pane identity/index reuse, Shell icons, drag/drop, and Firefox HWND lifecycle controls
+
 ## v0.0.5rc01
 
 - unify File and Browser panes on one free-position workspace surface

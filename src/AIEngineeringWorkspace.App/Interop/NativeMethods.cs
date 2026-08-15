@@ -35,6 +35,63 @@ internal static class NativeMethods
     internal const uint WM_CLOSE = 0x0010;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
 
+    internal const uint INPUT_KEYBOARD = 1;
+    internal const uint KEYEVENTF_KEYUP = 0x0002;
+    internal const uint KEYEVENTF_UNICODE = 0x0004;
+    internal const ushort VK_CONTROL = 0x11;
+    internal const ushort VK_L = 0x4C;
+    internal const ushort VK_RETURN = 0x0D;
+
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct INPUT
+    {
+        public uint Type;
+        public INPUTUNION Union;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    internal struct INPUTUNION
+    {
+        [FieldOffset(0)]
+        public MOUSEINPUT Mouse;
+
+        [FieldOffset(0)]
+        public KEYBDINPUT Keyboard;
+
+        [FieldOffset(0)]
+        public HARDWAREINPUT Hardware;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MOUSEINPUT
+    {
+        public int Dx;
+        public int Dy;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct KEYBDINPUT
+    {
+        public ushort VirtualKey;
+        public ushort ScanCode;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct HARDWAREINPUT
+    {
+        public uint Message;
+        public ushort ParamLow;
+        public ushort ParamHigh;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct RECT
     {
@@ -141,6 +198,13 @@ internal static class NativeMethods
         uint fuFlags,
         uint uTimeout,
         out UIntPtr lpdwResult);
+
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint SendInput(
+        uint inputCount,
+        [In] INPUT[] inputs,
+        int inputSize);
 
     [DllImport("user32.dll")]
     internal static extern uint GetCurrentThreadId();

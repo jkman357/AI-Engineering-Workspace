@@ -1,12 +1,13 @@
 <Window x:Class="AIEngineeringWorkspace.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI Engineering Workspace — v0.0.5rc01"
+        Title="AI Engineering Workspace — v0.0.6rc02"
         Width="1700"
         Height="960"
         MinWidth="1280"
         MinHeight="720"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized">
     <DockPanel LastChildFill="True">
         <Border DockPanel.Dock="Top" Background="#F3F3F3" BorderBrush="#B8B8B8" BorderThickness="0,0,0,1" Padding="10,8">
             <Grid>
@@ -17,14 +18,22 @@
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock FontSize="18" FontWeight="SemiBold" Text="AI Engineering Workspace" />
-                    <TextBlock Margin="10,3,0,0" Text="v0.0.5rc01 — Unified Dynamic Pane + Endpoint Identity POC" />
+                    <TextBlock Margin="10,3,0,0" Text="v0.0.6rc02 — Workspace Fit + Browser Navigation + File Actions" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button Margin="0,0,6,0" Padding="12,6" Click="AddFilePaneButton_Click">+ Files</Button>
-                    <Button Margin="0,0,6,0" Padding="12,6" Click="AddBrowserPaneButton_Click">+ Browser</Button>
-                    <Button x:Name="ShowIdsButton" Margin="0,0,6,0" Padding="12,6" Click="ShowIdsButton_Click">Show IDs</Button>
-                    <Button Padding="14,6" Click="DetachAllButton_Click">Detach All</Button>
+                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="AddFilePaneButton_Click" ToolTip="Add File pane">
+                        <TextBlock FontSize="16" Text="📁+" />
+                    </Button>
+                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="AddBrowserPaneButton_Click" ToolTip="Add Browser pane">
+                        <TextBlock FontSize="16" Text="🌐+" />
+                    </Button>
+                    <Button x:Name="ShowIdsButton" Width="38" Height="30" Margin="0,0,6,0" Click="ShowIdsButton_Click" ToolTip="Show routing endpoint IDs (B1-B8 / F1-F4)">
+                        <TextBlock FontSize="16" FontWeight="Bold" Text="#" />
+                    </Button>
+                    <Button Width="38" Height="30" Click="DetachAllButton_Click" ToolTip="Detach all docked Firefox windows">
+                        <TextBlock FontSize="17" Text="↗" />
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -46,15 +55,17 @@
         </Border>
 
         <ScrollViewer x:Name="WorkspaceScrollViewer"
-                      Margin="8"
+                      Margin="4"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
+                      HorizontalContentAlignment="Left"
+                      VerticalContentAlignment="Top"
                       CanContentScroll="False">
             <Canvas x:Name="WorkspaceCanvas"
-                    Width="1580"
-                    Height="820"
-                    MinWidth="1200"
-                    MinHeight="700"
+                    Width="1200"
+                    Height="700"
+                    MinWidth="900"
+                    MinHeight="560"
                     Background="#F7F7F7" />
         </ScrollViewer>
     </DockPanel>

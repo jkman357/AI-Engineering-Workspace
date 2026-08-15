@@ -4,7 +4,7 @@
 
 AI Engineering Workspace does **not** store, collect, persist, or manage user account credentials or passwords.
 
-The application does not provide a password vault, credential database, account database, or authentication provider. Browser authentication state remains managed by Firefox and its user profile, including cookies, sessions, and any browser password-manager behavior selected by the user.
+The application does not provide a password vault, credential database, account database, or authentication provider. Browser authentication state remains managed by Firefox and its user profile, including cookies, sessions, and any browser password-manager behavior selected by the user. AI Engineering Workspace does not implement credential capture or persistence and does not intentionally access or maintain browser password-manager data.
 
 ## Diagnostics
 

@@ -62,6 +62,10 @@ public partial class BrowserTile : UserControl
     internal void SetEndpointIdVisibility(bool visible)
         => EndpointBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
+
+    internal void FitBrowserToPane()
+        => BrowserHost.ResizeDockedWindow();
+
     public void CheckHealth()
     {
         if (!BrowserHost.HasDockedWindow)
@@ -122,6 +126,9 @@ public partial class BrowserTile : UserControl
     }
 
     private async void LaunchButton_Click(object sender, RoutedEventArgs e)
+        => await LaunchAndDockAsync();
+
+    private async Task LaunchAndDockAsync()
     {
         ActivateRequested?.Invoke(this);
         SetUiBusy(true);
@@ -131,8 +138,10 @@ public partial class BrowserTile : UserControl
 
         try
         {
+            var targetUrl = NormalizeUrl(UrlTextBox.Text);
+            UrlTextBox.Text = targetUrl;
             SetStatus("Waiting for serialized Firefox launch / HWND discovery...");
-            var window = await _firefox.LaunchAndFindNewWindowAsync(UrlTextBox.Text, _launchCts.Token, Identity.Alias);
+            var window = await _firefox.LaunchAndFindNewWindowAsync(targetUrl, _launchCts.Token, Identity.Alias);
             if (window is null)
             {
                 SetStatus("Firefox launched, but its new HWND could not be isolated safely. No existing window was guessed.");
@@ -158,6 +167,58 @@ public partial class BrowserTile : UserControl
         {
             SetUiBusy(false);
         }
+    }
+
+    private async void UrlTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var targetUrl = NormalizeUrl(UrlTextBox.Text);
+        UrlTextBox.Text = targetUrl;
+
+        if (!BrowserHost.HasDockedWindow)
+        {
+            RuntimeLog.Info($"[{Identity.Alias}] URL Enter pressed without docked Firefox; launching target URL='{targetUrl}'.");
+            await LaunchAndDockAsync();
+            return;
+        }
+
+        try
+        {
+            ActivateRequested?.Invoke(this);
+            SetStatus($"Navigating to {targetUrl}...");
+            var sent = await BrowserHost.NavigateByKeyboardAsync(targetUrl);
+            SetStatus(sent ? $"Navigation requested: {targetUrl}" : "Unable to navigate because the docked Firefox window is unavailable.");
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error($"[{Identity.Alias}] URL navigation failed. URL='{targetUrl}'", ex);
+            SetStatus($"Navigation failed: {ex.Message}");
+        }
+    }
+
+    private static string NormalizeUrl(string? input)
+    {
+        var value = (input ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "https://www.google.com/";
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute) &&
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
+        {
+            return absolute.ToString();
+        }
+
+        var candidate = $"https://{value}";
+        return Uri.TryCreate(candidate, UriKind.Absolute, out var normalized)
+            ? normalized.ToString()
+            : value;
     }
 
     private void DockExistingButton_Click(object sender, RoutedEventArgs e)
@@ -238,6 +299,14 @@ public partial class BrowserTile : UserControl
 
     private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         => ActivateRequested?.Invoke(this);
+
+    private void UserControl_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (BrowserHost.HasDockedWindow)
+        {
+            BrowserHost.ResizeDockedWindow();
+        }
+    }
 
     private void DockWindow(BrowserWindowInfo window)
     {

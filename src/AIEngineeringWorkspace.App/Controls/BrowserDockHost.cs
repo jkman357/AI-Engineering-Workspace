@@ -322,6 +322,116 @@ public sealed class BrowserDockHost : HwndHost
         }
     }
 
+    public async Task<bool> NavigateByKeyboardAsync(string url)
+    {
+        if (!CheckDockedWindowHealth())
+        {
+            return false;
+        }
+
+        var target = (url ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return false;
+        }
+
+        FocusBrowser();
+        await Task.Delay(60);
+
+        SendVirtualKeyChord(NativeMethods.VK_CONTROL, NativeMethods.VK_L);
+        await Task.Delay(80);
+        SendUnicodeText(target);
+        await Task.Delay(30);
+        SendVirtualKey(NativeMethods.VK_RETURN);
+
+        RuntimeLog.Info($"Browser keyboard navigation requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; URL='{target}'");
+        return true;
+    }
+
+    private static void SendVirtualKeyChord(ushort modifier, ushort key)
+    {
+        var inputs = new[]
+        {
+            CreateVirtualKeyInput(modifier, false),
+            CreateVirtualKeyInput(key, false),
+            CreateVirtualKeyInput(key, true),
+            CreateVirtualKeyInput(modifier, true)
+        };
+
+        SendInputs(inputs, $"virtual-key chord 0x{modifier:X}+0x{key:X}");
+    }
+
+    private static void SendVirtualKey(ushort key)
+    {
+        var inputs = new[]
+        {
+            CreateVirtualKeyInput(key, false),
+            CreateVirtualKeyInput(key, true)
+        };
+
+        SendInputs(inputs, $"virtual key 0x{key:X}");
+    }
+
+    private static void SendUnicodeText(string text)
+    {
+        var inputs = new List<NativeMethods.INPUT>(text.Length * 2);
+        foreach (var character in text)
+        {
+            inputs.Add(CreateUnicodeInput(character, false));
+            inputs.Add(CreateUnicodeInput(character, true));
+        }
+
+        SendInputs(inputs.ToArray(), "Unicode URL text");
+    }
+
+    private static NativeMethods.INPUT CreateVirtualKeyInput(ushort key, bool keyUp)
+        => new()
+        {
+            Type = NativeMethods.INPUT_KEYBOARD,
+            Union = new NativeMethods.INPUTUNION
+            {
+                Keyboard = new NativeMethods.KEYBDINPUT
+                {
+                    VirtualKey = key,
+                    ScanCode = 0,
+                    Flags = keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0,
+                    Time = 0,
+                    ExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
+
+    private static NativeMethods.INPUT CreateUnicodeInput(char character, bool keyUp)
+        => new()
+        {
+            Type = NativeMethods.INPUT_KEYBOARD,
+            Union = new NativeMethods.INPUTUNION
+            {
+                Keyboard = new NativeMethods.KEYBDINPUT
+                {
+                    VirtualKey = 0,
+                    ScanCode = character,
+                    Flags = NativeMethods.KEYEVENTF_UNICODE | (keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0),
+                    Time = 0,
+                    ExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
+
+    private static void SendInputs(NativeMethods.INPUT[] inputs, string operation)
+    {
+        if (inputs.Length == 0)
+        {
+            return;
+        }
+
+        var sent = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
+        if (sent != inputs.Length)
+        {
+            RuntimeLog.Warn($"SendInput incomplete for {operation}. Requested={inputs.Length}; Sent={sent}; Win32={Marshal.GetLastWin32Error()}");
+        }
+    }
+
     private void RestoreWindowStyleOnly(IntPtr hwnd)
     {
         if (!NativeMethods.IsWindow(hwnd))
