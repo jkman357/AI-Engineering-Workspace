@@ -102,10 +102,37 @@
                             ToolTip="Close this browser pane">×</Button>
 
                     <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6">
-                        <Button x:Name="LaunchButton" Margin="0,0,6,0" Padding="10,4" Click="LaunchButton_Click">Launch + Dock</Button>
-                        <Button x:Name="DockExistingButton" Margin="0,0,6,0" Padding="10,4" Click="DockExistingButton_Click">Dock Existing</Button>
-                        <Button x:Name="FocusButton" Margin="0,0,6,0" Padding="10,4" Click="FocusButton_Click">Focus</Button>
-                        <Button x:Name="DetachButton" Padding="10,4" Click="DetachButton_Click">Detach</Button>
+                        <Button x:Name="LaunchButton"
+                                Width="32"
+                                Height="28"
+                                Margin="0,0,6,0"
+                                Padding="0"
+                                FontSize="16"
+                                Click="LaunchButton_Click"
+                                ToolTip="Launch a new Firefox window and dock it into this Browser pane">▶</Button>
+                        <Button x:Name="DockExistingButton"
+                                Width="32"
+                                Height="28"
+                                Margin="0,0,6,0"
+                                Padding="0"
+                                FontSize="17"
+                                Click="DockExistingButton_Click"
+                                ToolTip="Dock the single existing Firefox window into this Browser pane">⇲</Button>
+                        <Button x:Name="FocusButton"
+                                Width="32"
+                                Height="28"
+                                Margin="0,0,6,0"
+                                Padding="0"
+                                FontSize="17"
+                                Click="FocusButton_Click"
+                                ToolTip="Recover keyboard focus to the docked Firefox web-content area">⌖</Button>
+                        <Button x:Name="DetachButton"
+                                Width="32"
+                                Height="28"
+                                Padding="0"
+                                FontSize="17"
+                                Click="DetachButton_Click"
+                                ToolTip="Detach and restore this Firefox window">↗</Button>
                     </WrapPanel>
                 </Grid>
             </Border>

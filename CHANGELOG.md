@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.6rc04
+
+- release WPF keyboard focus from the Workspace URL TextBox before transferring input to Firefox
+- add a best-effort browser-content focus bridge for the foreign docked Firefox HWND
+- enumerate visible Firefox child HWNDs and prefer Mozilla compositor/content surfaces for keyboard focus when available
+- return focus toward browser content after Workspace URL navigation so Ctrl+L does not intentionally leave input trapped in the address bar
+- bridge WPF Tab/GotKeyboardFocus entry into BrowserDockHost toward the docked Firefox content surface
+- expand focus diagnostics with selected target HWND, Firefox PID/thread, foreground HWND, previous/current focus HWND, and AttachThreadInput evidence
+- keep the Focus action as a manual recovery/diagnostic command rather than a normal per-input requirement
+- replace Browser Launch + Dock / Dock Existing / Focus / Detach text controls with compact icon buttons and tooltips
+- retain v0.0.6rc03 adaptive layout, File Manager UX, security hardening, logging policy, MIT license, and browser lifecycle behavior
+
 ## v0.0.6rc03
 
 - add Auto Fit / Free Layout modes; Auto Fit reflows remaining panes after add/remove and on viewport changes

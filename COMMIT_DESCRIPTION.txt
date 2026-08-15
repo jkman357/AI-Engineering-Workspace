@@ -1,17 +1,14 @@
-feat: harden adaptive workspace and file manager UX in v0.0.6rc03
+fix: harden docked Firefox input focus and toolbar UX in v0.0.6rc04
 
-- continue the active v0.0.6 RC line without freezing or advancing the minor version
-- add Auto Fit and Free Layout workspace modes
-- make Auto Fit reflow remaining panes after add/remove and viewport changes
-- switch to Free Layout automatically when the user manually moves or resizes a pane
-- add Browser pane maximize/restore inside the Workspace without forcing Firefox F11 monitor full-screen
-- keep the docked Firefox HWND fitted to the Browser pane client region during resize, maximize, and restore
-- add clickable Name, Type, Size, and Modified File Manager sorting with ascending/descending indicators
-- retain Explorer-like Open, Copy, Cut/Move, Paste, Rename, Recycle Bin delete, New Folder, Refresh, Shell icons, and FileDrop behavior
-- revise credential language to describe intentional design boundaries instead of an absolute no-secret-data guarantee
-- document Firefox profile/session state as an external trust boundary
-- add runtime log retention, file-count cleanup, size-based rotation, environment-variable disable/configuration, and best-effort sensitive-value redaction
-- document runtime log locations and clarify that build/launcher logs are separate from application runtime rotation
-- keep the asInvoker statement scoped to standard-user design rather than claiming absolute non-elevation
-- retain the MIT License unchanged and preserve README disclaimer wording as practical risk guidance only
-- update README, SECURITY.md, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc03
+- continue the active v0.0.6 RC line without freezing or advancing the version
+- release WPF URL TextBox keyboard focus before transferring input to a docked Firefox HWND
+- add a best-effort Win32 browser-content focus bridge for cross-process HwndHost docking
+- enumerate visible Firefox child HWNDs and prefer Mozilla compositor/content surfaces as keyboard-focus targets
+- return focus toward Firefox web content after Ctrl+L URL navigation so input is not intentionally left in the address bar
+- bridge WPF Tab/GotKeyboardFocus entry into BrowserDockHost toward the Firefox content surface
+- keep Focus as an explicit recovery and diagnostic action rather than a normal per-input requirement
+- add runtime focus diagnostics for root/target HWND, PID/thread, foreground HWND, previous/current focus HWND, and AttachThreadInput state
+- replace Browser Launch + Dock, Dock Existing, Focus, and Detach text controls with compact icon buttons and hover tooltips
+- retain adaptive layout, Browser maximize/restore, File Manager sorting/actions, diagnostics policy, security wording, standard-user design, and Firefox lifecycle ownership from v0.0.6rc03
+- retain the MIT License unchanged
+- update README, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc04

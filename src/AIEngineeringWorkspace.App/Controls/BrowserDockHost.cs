@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows.Input;
 using System.Windows.Interop;
 using AIEngineeringWorkspace.Infrastructure;
 using AIEngineeringWorkspace.Interop;
@@ -71,6 +73,26 @@ public sealed class BrowserDockHost : HwndHost
     {
         base.OnWindowPositionChanged(rcBoundingBox);
         ResizeDockedWindow();
+    }
+
+    protected override bool TabIntoCore(TraversalRequest request)
+    {
+        if (!IsDocked)
+        {
+            return false;
+        }
+
+        FocusBrowserContent();
+        return true;
+    }
+
+    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    {
+        base.OnGotKeyboardFocus(e);
+        if (IsDocked)
+        {
+            FocusBrowserContent();
+        }
     }
 
     public void Dock(IntPtr browserHwnd)
@@ -156,7 +178,8 @@ public sealed class BrowserDockHost : HwndHost
         }
 
         ResizeDockedWindow();
-        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}");
+        FocusBrowserContent();
+        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; initial content-focus recovery requested.");
     }
 
     public void Detach()
@@ -281,17 +304,37 @@ public sealed class BrowserDockHost : HwndHost
     }
 
     public void FocusBrowser()
+        => FocusBrowserWindow(_browserHwnd, "browser-root");
+
+    public void FocusBrowserContent()
     {
         if (!CheckDockedWindowHealth())
         {
             return;
         }
 
+        var targetHwnd = FindPreferredContentHwnd();
+        FocusBrowserWindow(targetHwnd, targetHwnd == _browserHwnd ? "browser-root-fallback" : "browser-content");
+    }
+
+    private void FocusBrowserWindow(IntPtr targetHwnd, string targetRole)
+    {
+        if (!CheckDockedWindowHealth())
+        {
+            return;
+        }
+
+        if (targetHwnd == IntPtr.Zero || !NativeMethods.IsWindow(targetHwnd))
+        {
+            targetHwnd = _browserHwnd;
+            targetRole = "browser-root-fallback";
+        }
+
         var currentThread = NativeMethods.GetCurrentThreadId();
-        var browserThread = NativeMethods.GetWindowThreadProcessId(_browserHwnd, out var browserPid);
+        var browserThread = NativeMethods.GetWindowThreadProcessId(targetHwnd, out var browserPid);
         if (browserThread == 0)
         {
-            RuntimeLog.Warn($"Cannot focus BrowserHWND=0x{_browserHwnd.ToInt64():X}; GetWindowThreadProcessId returned 0.");
+            RuntimeLog.Warn($"Cannot focus target HWND=0x{targetHwnd.ToInt64():X}; Role={targetRole}; GetWindowThreadProcessId returned 0.");
             return;
         }
 
@@ -304,14 +347,16 @@ public sealed class BrowserDockHost : HwndHost
                 attached = NativeMethods.AttachThreadInput(currentThread, browserThread, true);
                 if (!attached)
                 {
-                    RuntimeLog.Warn($"AttachThreadInput failed. CurrentThread={currentThread}; BrowserThread={browserThread}");
+                    RuntimeLog.Warn($"AttachThreadInput failed. CurrentThread={currentThread}; BrowserThread={browserThread}; TargetHWND=0x{targetHwnd.ToInt64():X}; Role={targetRole}");
                 }
             }
 
             Marshal.SetLastPInvokeError(0);
-            NativeMethods.SetFocus(_browserHwnd);
+            var previousFocus = NativeMethods.SetFocus(targetHwnd);
             var focusError = Marshal.GetLastPInvokeError();
-            RuntimeLog.Info($"Browser focus requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; PID={browserPid}; CurrentThread={currentThread}; BrowserThread={browserThread}; ThreadInputAttached={attached}; Win32={focusError}");
+            var currentFocus = NativeMethods.GetFocus();
+            var foreground = NativeMethods.GetForegroundWindow();
+            RuntimeLog.Info($"Browser focus requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; TargetHWND=0x{targetHwnd.ToInt64():X}; Role={targetRole}; PID={browserPid}; CurrentThread={currentThread}; BrowserThread={browserThread}; ThreadInputAttached={attached}; PreviousFocus=0x{previousFocus.ToInt64():X}; CurrentFocus=0x{currentFocus.ToInt64():X}; Foreground=0x{foreground.ToInt64():X}; Win32={focusError}");
         }
         finally
         {
@@ -320,6 +365,72 @@ public sealed class BrowserDockHost : HwndHost
                 NativeMethods.AttachThreadInput(currentThread, browserThread, false);
             }
         }
+    }
+
+    private IntPtr FindPreferredContentHwnd()
+    {
+        if (!CheckDockedWindowHealth())
+        {
+            return IntPtr.Zero;
+        }
+
+        IntPtr preferred = IntPtr.Zero;
+        long preferredScore = long.MinValue;
+        string preferredClass = string.Empty;
+
+        NativeMethods.EnumChildWindows(
+            _browserHwnd,
+            (childHwnd, _) =>
+            {
+                if (!NativeMethods.IsWindow(childHwnd) || !NativeMethods.IsWindowVisible(childHwnd))
+                {
+                    return true;
+                }
+
+                var className = GetWindowClassName(childHwnd);
+                var area = 0L;
+                if (NativeMethods.GetWindowRect(childHwnd, out var rect))
+                {
+                    area = Math.Max(0L, (long)rect.Width * rect.Height);
+                }
+
+                var score = area;
+                if (className.Contains("MozillaCompositorWindowClass", StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 10_000_000_000L;
+                }
+                else if (className.Contains("Mozilla", StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 5_000_000_000L;
+                }
+
+                if (score > preferredScore)
+                {
+                    preferred = childHwnd;
+                    preferredScore = score;
+                    preferredClass = className;
+                }
+
+                return true;
+            },
+            IntPtr.Zero);
+
+        if (preferred == IntPtr.Zero)
+        {
+            RuntimeLog.Debug($"No visible Firefox child HWND selected for content focus. Falling back to root HWND=0x{_browserHwnd.ToInt64():X}.");
+            return _browserHwnd;
+        }
+
+        RuntimeLog.Debug($"Firefox content-focus target selected. RootHWND=0x{_browserHwnd.ToInt64():X}; TargetHWND=0x{preferred.ToInt64():X}; Class='{preferredClass}'; Score={preferredScore}");
+        return preferred;
+    }
+
+    private static string GetWindowClassName(IntPtr hwnd)
+    {
+        var builder = new StringBuilder(256);
+        return NativeMethods.GetClassName(hwnd, builder, builder.Capacity) > 0
+            ? builder.ToString()
+            : string.Empty;
     }
 
     public async Task<bool> NavigateByKeyboardAsync(string url)
@@ -343,8 +454,14 @@ public sealed class BrowserDockHost : HwndHost
         SendUnicodeText(target);
         await Task.Delay(30);
         SendVirtualKey(NativeMethods.VK_RETURN);
+        await Task.Delay(120);
 
-        RuntimeLog.Info($"Browser keyboard navigation requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; URL='{target}'");
+        // Ctrl+L intentionally places Firefox keyboard focus in the address bar.
+        // Move Win32 focus back toward the Firefox content surface after navigation
+        // so later mouse clicks and text entry are not trapped in browser chrome.
+        FocusBrowserContent();
+
+        RuntimeLog.Info($"Browser keyboard navigation requested and content-focus recovery attempted. BrowserHWND=0x{_browserHwnd.ToInt64():X}; URL='{target}'");
         return true;
     }
 

@@ -191,6 +191,10 @@ public partial class BrowserTile : UserControl
         var targetUrl = NormalizeUrl(UrlTextBox.Text);
         UrlTextBox.Text = targetUrl;
 
+        // The URL TextBox owns WPF keyboard focus when Enter is pressed.
+        // Explicitly release it before transferring focus into the foreign Firefox HWND.
+        Keyboard.ClearFocus();
+
         if (!BrowserHost.HasDockedWindow)
         {
             RuntimeLog.Info($"[{Identity.Alias}] URL Enter pressed without docked Firefox; launching target URL='{targetUrl}'.");
@@ -268,8 +272,9 @@ public partial class BrowserTile : UserControl
         ActivateRequested?.Invoke(this);
         try
         {
-            BrowserHost.FocusBrowser();
-            SetStatus(BrowserHost.IsDocked ? "Focus requested for docked Firefox." : "Nothing is docked.");
+            Keyboard.ClearFocus();
+            BrowserHost.FocusBrowserContent();
+            SetStatus(BrowserHost.IsDocked ? "Web-content keyboard focus recovery requested for docked Firefox." : "Nothing is docked.");
         }
         catch (Exception ex)
         {

@@ -7,6 +7,7 @@ namespace AIEngineeringWorkspace.Interop;
 internal static class NativeMethods
 {
     internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+    internal delegate bool EnumChildProc(IntPtr hWnd, IntPtr lParam);
 
     internal const int GWL_STYLE = -16;
     internal const int GWL_EXSTYLE = -20;
@@ -128,6 +129,10 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EnumChildWindows(IntPtr hWndParent, EnumChildProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -188,6 +193,12 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetFocus();
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr SendMessageTimeout(
