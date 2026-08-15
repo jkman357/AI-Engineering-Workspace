@@ -17,8 +17,11 @@ public partial class FilePane : UserControl
     private const int DropEffectCopy = 1;
     private const int DropEffectMove = 2;
 
+    private readonly List<FileEntry> _entries = new();
     private Point _dragStartPoint;
     private string _currentPath = string.Empty;
+    private string _sortColumn = "Name";
+    private bool _sortAscending = true;
 
     public event Action<FilePane, string>? StatusChanged;
     public event Action<FilePane>? ClosePaneRequested;
@@ -81,7 +84,9 @@ public partial class FilePane : UserControl
                         IsDirectory = true,
                         Type = "Folder",
                         SizeText = string.Empty,
+                        SizeBytes = -1,
                         ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
+                        ModifiedTime = info.LastWriteTime,
                         Icon = ShellIconService.GetSmallIcon(info.FullName)
                     });
                 }
@@ -103,7 +108,9 @@ public partial class FilePane : UserControl
                         IsDirectory = false,
                         Type = string.IsNullOrWhiteSpace(info.Extension) ? "File" : info.Extension.TrimStart('.').ToUpperInvariant(),
                         SizeText = FormatSize(info.Length),
+                        SizeBytes = info.Length,
                         ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
+                        ModifiedTime = info.LastWriteTime,
                         Icon = ShellIconService.GetSmallIcon(info.FullName)
                     });
                 }
@@ -115,10 +122,9 @@ public partial class FilePane : UserControl
 
             _currentPath = path;
             PathTextBox.Text = path;
-            FileListView.ItemsSource = entries
-                .OrderByDescending(item => item.IsDirectory)
-                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            _entries.Clear();
+            _entries.AddRange(entries);
+            ApplySort(false);
 
             SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s)");
             RuntimeLog.Info($"[{Identity.Alias}] Folder loaded. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}");
@@ -133,6 +139,72 @@ public partial class FilePane : UserControl
             RuntimeLog.Error($"[{Identity.Alias}] Failed to load folder '{requestedPath}'.", ex);
             SetStatus($"Unable to load folder: {ex.Message}");
         }
+    }
+
+    private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not GridViewColumnHeader header || header.Tag is not string column)
+        {
+            return;
+        }
+
+        if (string.Equals(_sortColumn, column, StringComparison.OrdinalIgnoreCase))
+        {
+            _sortAscending = !_sortAscending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = true;
+        }
+
+        ApplySort(true);
+    }
+
+    private void ApplySort(bool updateStatus)
+    {
+        IOrderedEnumerable<FileEntry> ordered = _entries.OrderByDescending(item => item.IsDirectory);
+
+        ordered = _sortColumn switch
+        {
+            "Type" => _sortAscending
+                ? ordered.ThenBy(item => item.Type, StringComparer.CurrentCultureIgnoreCase).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                : ordered.ThenByDescending(item => item.Type, StringComparer.CurrentCultureIgnoreCase).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "Size" => _sortAscending
+                ? ordered.ThenBy(item => item.SizeBytes).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                : ordered.ThenByDescending(item => item.SizeBytes).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "Modified" => _sortAscending
+                ? ordered.ThenBy(item => item.ModifiedTime).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                : ordered.ThenByDescending(item => item.ModifiedTime).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            _ => _sortAscending
+                ? ordered.ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                : ordered.ThenByDescending(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+        };
+
+        FileListView.ItemsSource = ordered.ToList();
+        UpdateSortHeaders();
+
+        if (updateStatus)
+        {
+            var direction = _sortAscending ? "ascending" : "descending";
+            SetStatus($"Sorted by {_sortColumn} ({direction}).");
+            RuntimeLog.Info($"[{Identity.Alias}] File list sorted. Column={_sortColumn}; Ascending={_sortAscending}; Path='{_currentPath}'");
+        }
+    }
+
+    private void UpdateSortHeaders()
+    {
+        SetSortHeader(NameColumnHeader, "Name");
+        SetSortHeader(TypeColumnHeader, "Type");
+        SetSortHeader(SizeColumnHeader, "Size");
+        SetSortHeader(ModifiedColumnHeader, "Modified");
+    }
+
+    private void SetSortHeader(GridViewColumnHeader header, string column)
+    {
+        header.Content = string.Equals(_sortColumn, column, StringComparison.OrdinalIgnoreCase)
+            ? $"{column} {(_sortAscending ? "↑" : "↓")}"
+            : column;
     }
 
     private void GoButton_Click(object sender, RoutedEventArgs e) => NavigateTo(PathTextBox.Text);

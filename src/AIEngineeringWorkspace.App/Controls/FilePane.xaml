@@ -120,7 +120,10 @@
                 </ListView.ContextMenu>
                 <ListView.View>
                     <GridView AllowsColumnReorder="True">
-                        <GridViewColumn Header="Name" Width="190">
+                        <GridViewColumn Width="190">
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader x:Name="NameColumnHeader" Tag="Name" Content="Name ↑" Click="GridViewColumnHeader_Click" ToolTip="Sort by name" />
+                            </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -130,9 +133,21 @@
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Header="Type" Width="70" DisplayMemberBinding="{Binding Type}" />
-                        <GridViewColumn Header="Size" Width="80" DisplayMemberBinding="{Binding SizeText}" />
-                        <GridViewColumn Header="Modified" Width="125" DisplayMemberBinding="{Binding ModifiedText}" />
+                        <GridViewColumn Width="70" DisplayMemberBinding="{Binding Type}">
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader x:Name="TypeColumnHeader" Tag="Type" Content="Type" Click="GridViewColumnHeader_Click" ToolTip="Sort by type" />
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="80" DisplayMemberBinding="{Binding SizeText}">
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader x:Name="SizeColumnHeader" Tag="Size" Content="Size" Click="GridViewColumnHeader_Click" ToolTip="Sort by size" />
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="125" DisplayMemberBinding="{Binding ModifiedText}">
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader x:Name="ModifiedColumnHeader" Tag="Modified" Content="Modified" Click="GridViewColumnHeader_Click" ToolTip="Sort by modified time" />
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
                     </GridView>
                 </ListView.View>
             </ListView>

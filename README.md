@@ -1,145 +1,133 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc02**
+Current version: **v0.0.6rc03**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
-AI Engineering Workspace is a .NET 10 / WPF Windows desktop workspace that docks real Firefox windows together with project-oriented file panes. The current POC is intentionally API-free and runs as a standard user.
+AI Engineering Workspace is a .NET 10 / WPF Windows desktop workspace that docks real Firefox windows together with project-oriented file panes. The current RC is intentionally API-free and is designed for standard-user operation.
 
-## Current direction
+## Current architecture direction
 
 ```text
 Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
 │  ├─ real Firefox HWND docking
-│  ├─ URL + Enter navigation for the exact docked pane
-│  ├─ pane-content auto-fit
+│  ├─ URL + Enter navigation
+│  ├─ Workspace maximize / restore
 │  ├─ Launch + Dock / Dock Existing / Focus / Detach
-│  ├─ per-window lifecycle ownership
-│  └─ Google default endpoint
+│  └─ per-window lifecycle ownership
 ├─ File Pane (F1 ... F4)
 │  ├─ Windows Shell file/folder icons
-│  ├─ path navigation / parent / refresh
-│  ├─ Explorer-style right-click file actions
+│  ├─ Explorer-like file actions
+│  ├─ sortable Name / Type / Size / Modified columns
 │  └─ Windows FileDrop drag source
-└─ Pane Identity
+├─ Adaptive Layout
+│  ├─ Auto Fit
+│  └─ Free Layout
+└─ Endpoint Identity
    ├─ stable internal PaneId (GUID)
-   ├─ human-readable endpoint alias (B1/F1 ...)
-   └─ future context/message routing target
+   ├─ human-readable B#/F# alias
+   └─ future context/message-routing target
 ```
 
-## v0.0.6rc02 — Workspace Fit + Browser Navigation + File Actions
+## v0.0.6rc03 — Adaptive Workspace + File Manager UX + Security Hardening
 
-This RC retains the v0.0.6rc01 application behavior and clarifies repository-facing license, disclaimer, and credential-handling wording. No functional behavior change is intended in rc02.
+This RC continues the **v0.0.6** line. The version is not frozen; later fixes remain `v0.0.6rcXX` until the release is explicitly frozen.
 
-The underlying workspace features remain focused on practical usability found during v0.0.5rc01 testing.
+### Adaptive workspace layout
 
-### Startup workspace fit
+The Workspace now has two layout modes.
 
-- The main window starts maximized.
-- The default `F1/F2 + B1..B4` arrangement is calculated from the actual Workspace viewport at startup.
-- The six default panes are therefore sized to occupy the available working surface instead of using one fixed pixel layout that may leave large unused areas on different screens.
-- The Workspace remains scrollable after the user moves, resizes, or adds panes beyond the current viewport.
+**Auto Fit** is the default:
 
-### Browser pane behavior
+- remaining panes automatically reflow after a pane is added or removed;
+- panes are recalculated when the available Workspace viewport changes;
+- the active panes fill the available Workspace instead of leaving deleted-pane holes;
+- Firefox HWND content is resized with its Browser pane.
 
-Browser panes default to:
+**Free Layout** preserves manual geometry:
+
+- panes can be dragged freely with the `⋮⋮` handle;
+- panes can be resized with the lower-right `◢` grip;
+- dragging a pane onto another pane can exchange their positions;
+- manual move/resize automatically changes Auto Fit to Free Layout so the Workspace does not immediately undo the user's manual geometry.
+
+The toolbar layout icon toggles Auto Fit / Free Layout. Hover it for the current-mode tooltip.
+
+### Browser pane maximize / restore
+
+Each Browser pane has a small `□` control.
+
+- `□` maximizes that Browser pane **inside the AI Engineering Workspace**.
+- Other panes are temporarily hidden.
+- The docked Firefox HWND fills the Browser pane client region.
+- `❐` restores the previous Workspace layout.
+
+This is intentionally **not Firefox F11 monitor full-screen mode**. The Workspace retains ownership of pane identity, URL controls, close controls, status, and future routing UI.
+
+Browser panes still default to:
 
 ```text
 https://www.google.com/
 ```
 
-The Browser implementation docks the **actual Firefox top-level HWND** into WPF. It does not replace Firefox with an embedded web engine.
+Entering a URL and pressing Enter navigates only that Browser endpoint. If no browser is docked yet, Enter launches and docks Firefox using that URL.
 
-A Browser URL box now supports **Enter**:
-
-- If Firefox is already docked in that pane, the Workspace focuses that exact HWND and requests navigation using `Ctrl+L`, the normalized URL, and Enter.
-- If no Firefox is docked yet, pressing Enter launches and docks Firefox using the typed URL.
-- If a scheme is omitted, common URL text such as `www.yahoo.com.tw` is normalized to `https://www.yahoo.com.tw/`.
-
-Browser content automatically fills the remaining Browser pane content area after the Workspace title/controls. The application intentionally does **not** force Firefox into F11 full-screen mode, because the Workspace must retain pane identity, close controls, status, and future routing UI.
-
-Existing Firefox safety behavior remains:
+### Browser lifecycle safety
 
 - Firefox launch/HWND discovery is serialized to reduce cross-pane assignment races.
-- The same Firefox HWND cannot be owned by two Browser panes.
-- Workspace-launched Firefox windows are tracked by HWND + PID.
-- Closing a Workspace-owned Browser pane gracefully closes that specific Firefox window.
+- One Firefox HWND cannot be owned by two Browser panes.
+- Workspace-launched Firefox windows are tracked by exact HWND + PID.
+- Closing a Workspace-owned Browser pane gracefully closes that exact Firefox window.
 - A Firefox window attached through `Dock Existing` is detached/restored instead of force-closed.
-- Closing the Workspace gracefully closes Firefox windows that were launched by the Workspace.
-- The application does not use `Process.Kill()` for normal Browser window lifecycle handling.
+- Closing the Workspace gracefully closes Firefox windows launched by the Workspace.
+- Normal lifecycle handling does not use `Process.Kill()`.
 
-## Dynamic pane behavior
+## Dynamic pane identity
 
-- Browser and File panes can be moved freely by dragging the `⋮⋮` handle.
-- Browser and File panes can be resized with the lower-right `◢` grip.
-- Dragging one pane onto another swaps their positions, regardless of pane type.
-- Browser and File panes can therefore exchange locations without changing identity.
-- The workspace surface expands when panes are moved or resized beyond the current bounds.
-- The surface is scrollable when its working area exceeds the main window.
-
-### Dynamic add / remove
-
-The top toolbar uses compact icon controls with tooltips:
-
-- `📁+` — add File pane
-- `🌐+` — add Browser pane
-- `#` — show/hide routing endpoint IDs
-- `↗` — detach all docked Firefox windows
-
-Limits for the current POC:
+Current POC limits:
 
 - Browser panes: `B1..B8`
 - File panes: `F1..F4`
 
-Display indices use the smallest free number. Example: if `B2` is deleted while `B1/B3/B4` remain, the next Browser pane becomes `B2`. If every File pane is removed, the next File pane starts again at `F1`.
+Display numbers reuse the smallest free number. For example, deleting `B2` makes `B2` available to the next Browser pane.
 
-## Endpoint identity
+Every pane also owns an internal GUID `PaneId`. The display alias is for human operation; future routing should use `PaneId`, so moving a pane does not change its routing identity.
 
-Every pane has two identities:
+Use the `#` toolbar icon to show/hide `B#` and `F#` routing aliases.
 
-1. **Internal PaneId** — a GUID that remains bound to that pane for its lifetime.
-2. **Display alias** — `B1..B8` for Browser panes and `F1..F4` for File panes.
+## File Manager
 
-The display alias is intended for human interaction. Future routing logic should use the internal PaneId so moving panes on screen does not change routing identity.
+File panes use Windows Shell icons for folders and registered file types.
 
-Use the `#` toolbar control to show/hide routing aliases.
+The default File panes open:
 
-```text
-B1 -> Browser endpoint
-B2 -> Browser endpoint
-F1 -> File endpoint
+- `F1` → Downloads
+- `F2` → Desktop
 
-Future examples:
-B1 -> B3
-F1 -> B2
-```
-
-No message-routing implementation is included in this RC; only the endpoint identity foundation is present.
-
-## File panes
-
-File panes use Windows Shell icons for folders and registered file types. Icons therefore follow the associations on the local Windows system, similar to File Explorer.
-
-The first two default File panes open:
-
-- `F1` -> Downloads
-- `F2` -> Desktop
-
-File panes support:
+### Navigation and open
 
 - path entry + Go / Enter
 - parent folder
 - refresh
 - double-click folder navigation
-- double-click file open through the registered Windows shell application
-- Name / Type / Size / Modified columns
-- Windows Shell icons for folders and registered file types
-- Windows `FileDrop` drag source for Browser upload workflows
+- double-click file open through the registered Windows Shell application
+- Windows `FileDrop` drag source for browser upload workflows
 
-### File right-click actions
+### Sortable columns
 
-Right-click in a File pane provides:
+Click a column header to sort; click it again to reverse the direction:
+
+- `Name ↑/↓`
+- `Type ↑/↓`
+- `Size ↑/↓`
+- `Modified ↑/↓`
+
+Folders remain grouped before files, while the selected column controls ordering inside the groups.
+
+### Explorer-like actions
+
+Right-click provides:
 
 - Open
 - Copy
@@ -150,7 +138,7 @@ Right-click in a File pane provides:
 - New Folder
 - Refresh
 
-Keyboard shortcuts are also supported for the focused File pane:
+Keyboard shortcuts:
 
 ```text
 Ctrl+C  Copy
@@ -160,23 +148,86 @@ F2      Rename
 Delete  Delete to Recycle Bin
 ```
 
-Paste operations do not silently overwrite an existing destination item. Name collisions are skipped and logged for this RC.
+Paste does not silently overwrite an existing destination item in this RC. Name collisions are skipped and logged.
 
 ## Security and privacy
 
-**AI Engineering Workspace does not store, collect, persist, or manage user account credentials or passwords.**
+### Credential handling
 
-The application does not implement its own credential database, password vault, account store, or authentication provider. Login credentials, cookies, browser sessions, saved passwords, and authentication state remain under the control of Firefox and the selected Firefox user profile.
+AI Engineering Workspace **does not intentionally provide, implement, or maintain credential/password storage**, and the application is not designed to collect or manage user authentication credentials.
 
-AI Engineering Workspace currently operates by hosting/docking browser windows. It does not implement credential capture or persistence and does not intentionally access or maintain browser password-manager data.
+The Workspace does not implement its own password vault, credential database, account database, or authentication provider.
 
-Runtime diagnostics may contain engineering information such as URLs supplied to Browser panes, local file/folder paths, process IDs, HWND values, pane aliases, and error details. Users should handle diagnostic logs according to their own privacy, security, and organizational requirements.
+Firefox remains responsible for browser-managed authentication state, including cookies, sessions, saved logins, and any password-manager behavior enabled by the user. AI Engineering Workspace does not require reading Firefox saved-login databases as part of its current design and does not intentionally access or maintain browser password-manager data.
 
-## Standard-user / IT-policy principle
+This wording describes the application's design intent and functional boundary; it is not an absolute claim that arbitrary third-party, operating-system, browser, exception, or diagnostic data can never contain sensitive text.
 
-The executable manifest uses `asInvoker`; Administrator privileges are not required by design.
+See [`SECURITY.md`](SECURITY.md) for trust boundaries and diagnostics details.
 
-Build/run scripts do not use PowerShell execution-policy bypasses or attempt to circumvent endpoint-management or IT security policy. If an environment blocks an operation, the application should fail visibly and leave diagnostic evidence rather than silently bypass the policy.
+## Diagnostics policy
+
+Runtime diagnostics are local engineering logs. They are **not automatically uploaded by the application**.
+
+When the application is run from a source checkout, runtime logs are normally written to:
+
+```text
+logs\runtime\AIEngineeringWorkspace_*.log
+```
+
+When no repository root can be found, the fallback location is:
+
+```text
+%LOCALAPPDATA%\AIEngineeringWorkspace\logs\runtime\
+```
+
+Default runtime-log policy in `v0.0.6rc03`:
+
+- retention age: **14 days**;
+- maximum retained runtime files: **50**;
+- rotation: **10 MB per runtime log file**;
+- sensitive-value handling: **best-effort redaction** for common password/token/Authorization patterns and sensitive URL query parameters.
+
+Environment variables:
+
+```text
+AIEW_RUNTIME_LOG=0          Disable application runtime logging
+AIEW_LOG_RETENTION_DAYS=14  Runtime-log retention age
+AIEW_LOG_MAX_FILES=50       Maximum retained runtime log files
+AIEW_LOG_MAX_MB=10          Per-file rotation threshold in MB
+```
+
+Best-effort redaction is **not a security boundary or a guarantee**. Diagnostic logs may still contain information such as URLs, local paths, file names, process IDs, HWND values, pane aliases/PaneIds, and exception context. Review logs before sharing them publicly.
+
+Build and launcher scripts also create local diagnostic logs under `logs\build\` and `logs\runtime\`. Those script-generated files are separate from the application's runtime rotation policy.
+
+## Firefox profile trust boundary
+
+The current architecture treats Firefox and the selected Firefox profile as an external trust boundary:
+
+```text
+AI Engineering Workspace
+        │
+        │ HWND hosting / controlled UI interaction
+        ▼
+Firefox process
+        │
+        ▼
+Firefox profile
+├─ cookies
+├─ sessions
+├─ saved logins
+└─ browser settings
+```
+
+The Workspace can control a browser window that may already represent an authenticated session. That capability must be considered when evaluating physical access, workstation access, endpoint security, and future routing/automation features.
+
+## Privilege / IT-policy model
+
+The executable manifest uses `asInvoker` and the application is **designed for standard-user execution**. Administrator privileges are not required by design.
+
+`asInvoker` is not an absolute non-elevation guarantee: if the application is launched from an already elevated parent context, it can inherit that token. The project therefore avoids wording such as “always runs without Administrator privileges.”
+
+Build/run scripts do not use PowerShell execution-policy bypasses and do not intentionally circumvent endpoint-management or IT security policy.
 
 ## Build
 
@@ -194,13 +245,13 @@ From a normal Command Prompt:
 build.cmd
 ```
 
-The build log is written to:
+Build log:
 
 ```text
 logs\build\build_*.log
 ```
 
-The project must remain buildable from command line without opening Visual Studio.
+The project is intended to remain command-line buildable without opening Visual Studio.
 
 ## Run
 
@@ -208,49 +259,45 @@ The project must remain buildable from command line without opening Visual Studi
 run.cmd
 ```
 
-Runtime launcher and application logs are written under:
+Launcher/application diagnostics are written under `logs\runtime\` when logging is enabled.
 
-```text
-logs\runtime\
-```
+## v0.0.6rc03 test focus
 
-## v0.0.6rc02 POC test focus
-
-1. Build with `build.cmd`.
-2. Launch with `run.cmd` and verify the main window starts maximized.
-3. Verify default `F1/F2 + B1..B4` panes occupy the available Workspace surface without the previous large unused area.
-4. Launch/dock a Browser pane, type `www.yahoo.com.tw`, press Enter, and verify that exact Browser pane navigates.
-5. Resize the Browser pane and verify the Firefox HWND continues filling its content area.
-6. Hover the four toolbar icons and verify each tooltip explains its action.
-7. Right-click a file/folder and test Open, Copy, Cut/Move, Paste, Rename, Delete to Recycle Bin, New Folder, and Refresh.
-8. Verify Ctrl+C / Ctrl+X / Ctrl+V / F2 / Delete operate on the focused File pane.
-9. Move and resize File/Browser panes and verify `B#` / `F#` identity remains stable.
-10. Close/re-add panes and verify smallest-free display index reuse remains correct.
-11. Exit the Workspace and verify Workspace-launched Firefox windows close gracefully.
+1. Run `build.cmd`.
+2. Run `run.cmd` and verify Auto Fit occupies the available Workspace.
+3. Delete one or more panes and verify remaining panes automatically reflow/fill the area.
+4. Add File/Browser panes and verify Auto Fit recalculates the layout.
+5. Drag or resize a pane and verify layout changes to Free Layout rather than snapping back automatically.
+6. Toggle the layout icon back to Auto Fit and verify panes reflow.
+7. Dock Firefox, press the Browser `□`, and verify that Browser pane maximizes inside the Workspace; press `❐` to restore.
+8. Resize/restore and verify Firefox continues filling the Browser client area.
+9. Click Name / Type / Size / Modified headers repeatedly and verify ascending/descending sorting.
+10. Re-test right-click Open/Copy/Cut/Paste/Rename/Delete/New Folder/Refresh.
+11. Enter `www.yahoo.com.tw` in a docked Browser pane and verify Enter navigates that pane only.
+12. Verify `#` still exposes B#/F# endpoint aliases and IDs remain stable after movement.
+13. Verify runtime logs rotate/configure according to the documented environment variables when exercised.
+14. Exit the Workspace and verify Workspace-launched Firefox windows close gracefully.
 
 ## Current limits / non-goals
 
-This is still an RC-stage engineering POC. The following are not implemented yet:
+This remains an RC-stage engineering POC. The following are not implemented yet:
 
 - Workspace Save / Load
-- persisted pane geometry
-- automatic snap/docking layout engine
+- persisted pane geometry/layout mode
 - cross-chat context/message routing
-- controlled clipboard routing between Browser endpoints
+- controlled clipboard routing between endpoints
 - AI APIs
 - browser DOM automation
-- credential storage or password management
-
-Browser URL navigation in this RC uses controlled keyboard input to the exact docked Firefox HWND. It is a POC-level API-free navigation mechanism and should be tested for focus behavior across different Windows/Firefox configurations.
+- application-owned credential/password management
 
 ## Roadmap direction
 
 ```text
-Unified Dynamic Pane
+Adaptive Dynamic Pane Workspace
         +
 Endpoint Identity
         +
-Practical File/Browser UX
+File / Browser UX
         ↓
 Workspace Save / Load
         ↓

@@ -25,6 +25,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <Thumb x:Name="MoveThumb"
@@ -79,9 +80,19 @@
                              KeyDown="UrlTextBox_KeyDown"
                              ToolTip="Enter a URL and press Enter to navigate this Browser pane"
                              Text="https://www.google.com/" />
-                    <Button x:Name="ClosePaneButton"
+                    <Button x:Name="MaximizePaneButton"
                             Grid.Row="0"
                             Grid.Column="4"
+                            Width="24"
+                            Height="23"
+                            Margin="0,0,4,5"
+                            Padding="0"
+                            FontWeight="Bold"
+                            Click="MaximizePaneButton_Click"
+                            ToolTip="Maximize this Browser pane inside the Workspace">□</Button>
+                    <Button x:Name="ClosePaneButton"
+                            Grid.Row="0"
+                            Grid.Column="5"
                             Width="24"
                             Height="23"
                             Margin="0,0,0,5"
@@ -90,7 +101,7 @@
                             Click="ClosePaneButton_Click"
                             ToolTip="Close this browser pane">×</Button>
 
-                    <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5">
+                    <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6">
                         <Button x:Name="LaunchButton" Margin="0,0,6,0" Padding="10,4" Click="LaunchButton_Click">Launch + Dock</Button>
                         <Button x:Name="DockExistingButton" Margin="0,0,6,0" Padding="10,4" Click="DockExistingButton_Click">Dock Existing</Button>
                         <Button x:Name="FocusButton" Margin="0,0,6,0" Padding="10,4" Click="FocusButton_Click">Focus</Button>

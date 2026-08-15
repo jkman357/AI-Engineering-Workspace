@@ -1,7 +1,7 @@
 <Window x:Class="AIEngineeringWorkspace.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI Engineering Workspace — v0.0.6rc02"
+        Title="AI Engineering Workspace — v0.0.6rc03"
         Width="1700"
         Height="960"
         MinWidth="1280"
@@ -18,7 +18,7 @@
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock FontSize="18" FontWeight="SemiBold" Text="AI Engineering Workspace" />
-                    <TextBlock Margin="10,3,0,0" Text="v0.0.6rc02 — Workspace Fit + Browser Navigation + File Actions" />
+                    <TextBlock Margin="10,3,0,0" Text="v0.0.6rc03 — Adaptive Workspace + File Manager UX + Security Hardening" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -27,6 +27,9 @@
                     </Button>
                     <Button Width="38" Height="30" Margin="0,0,6,0" Click="AddBrowserPaneButton_Click" ToolTip="Add Browser pane">
                         <TextBlock FontSize="16" Text="🌐+" />
+                    </Button>
+                    <Button x:Name="LayoutModeButton" Width="38" Height="30" Margin="0,0,6,0" Click="LayoutModeButton_Click" ToolTip="Auto Fit layout is ON. Click to use Free Layout.">
+                        <TextBlock x:Name="LayoutModeGlyph" FontSize="17" FontWeight="Bold" Text="▦" />
                     </Button>
                     <Button x:Name="ShowIdsButton" Width="38" Height="30" Margin="0,0,6,0" Click="ShowIdsButton_Click" ToolTip="Show routing endpoint IDs (B1-B8 / F1-F4)">
                         <TextBlock FontSize="16" FontWeight="Bold" Text="#" />

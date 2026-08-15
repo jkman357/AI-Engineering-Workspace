@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.6rc03
+
+- add Auto Fit / Free Layout modes; Auto Fit reflows remaining panes after add/remove and on viewport changes
+- add Browser pane maximize/restore inside the Workspace without using Firefox F11 monitor full-screen
+- keep the docked Firefox HWND fitted to the Browser pane client area during resize/maximize/restore
+- add clickable File Manager column sorting for Name, Type, Size, and Modified with ascending/descending indicators
+- retain Explorer-like file context actions and keyboard shortcuts
+- harden credential wording as design-intent language instead of an absolute guarantee
+- document Firefox profile/session data as an external trust boundary
+- add runtime diagnostic policy: documented location, default 14-day/50-file retention, 10 MB rotation, environment-variable disable/configuration, and best-effort sensitive-value redaction
+- keep `asInvoker` wording scoped to standard-user design rather than an absolute non-elevation guarantee
+
 ## v0.0.6rc02
 
 - retain v0.0.6rc01 application behavior with no intended functional change

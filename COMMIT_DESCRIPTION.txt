@@ -1,11 +1,17 @@
-docs: clarify MIT license boundary and disclaimer wording in v0.0.6rc02
+feat: harden adaptive workspace and file manager UX in v0.0.6rc03
 
-- retain v0.0.6rc01 application behavior with no intended functional change
-- keep the standard MIT LICENSE text unchanged
-- rewrite README Disclaimer as practical engineering risk guidance rather than an additional use restriction
-- explicitly state that README guidance does not restrict or modify permissions granted under the MIT License
-- clarify independent evaluation requirements for production, enterprise, medical, safety-critical, regulated, and other high-assurance use
-- state that the project has not been independently validated, certified, or qualified for a specific regulated or safety-critical application
-- reinforce that AI Engineering Workspace does not store, collect, persist, or manage account credentials or passwords
-- clarify that browser authentication/session state remains under the browser profile and that the application does not intentionally access or maintain browser password-manager data
-- update README, SECURITY.md, CHANGELOG, release notes, version metadata, and command-line log version labels to v0.0.6rc02
+- continue the active v0.0.6 RC line without freezing or advancing the minor version
+- add Auto Fit and Free Layout workspace modes
+- make Auto Fit reflow remaining panes after add/remove and viewport changes
+- switch to Free Layout automatically when the user manually moves or resizes a pane
+- add Browser pane maximize/restore inside the Workspace without forcing Firefox F11 monitor full-screen
+- keep the docked Firefox HWND fitted to the Browser pane client region during resize, maximize, and restore
+- add clickable Name, Type, Size, and Modified File Manager sorting with ascending/descending indicators
+- retain Explorer-like Open, Copy, Cut/Move, Paste, Rename, Recycle Bin delete, New Folder, Refresh, Shell icons, and FileDrop behavior
+- revise credential language to describe intentional design boundaries instead of an absolute no-secret-data guarantee
+- document Firefox profile/session state as an external trust boundary
+- add runtime log retention, file-count cleanup, size-based rotation, environment-variable disable/configuration, and best-effort sensitive-value redaction
+- document runtime log locations and clarify that build/launcher logs are separate from application runtime rotation
+- keep the asInvoker statement scoped to standard-user design rather than claiming absolute non-elevation
+- retain the MIT License unchanged and preserve README disclaimer wording as practical risk guidance only
+- update README, SECURITY.md, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc03

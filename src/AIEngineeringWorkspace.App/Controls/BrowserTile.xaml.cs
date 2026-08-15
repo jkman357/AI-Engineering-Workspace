@@ -22,6 +22,7 @@ public partial class BrowserTile : UserControl
     public event Action<BrowserTile>? MoveCompleted;
     public event Action<BrowserTile, double, double>? ResizeRequested;
     public event Action<BrowserTile>? ActivateRequested;
+    public event Action<BrowserTile>? MaximizeRequested;
 
     internal PaneIdentity Identity { get; private set; } = PaneIdentity.Create(PaneKind.Browser, 1);
     public string TileId => Identity.DisplayName;
@@ -65,6 +66,16 @@ public partial class BrowserTile : UserControl
 
     internal void FitBrowserToPane()
         => BrowserHost.ResizeDockedWindow();
+
+    internal void SetMaximizedState(bool maximized)
+    {
+        MaximizePaneButton.Content = maximized ? "❐" : "□";
+        MaximizePaneButton.ToolTip = maximized
+            ? "Restore this Browser pane to the Workspace layout"
+            : "Maximize this Browser pane inside the Workspace";
+        MoveThumb.IsEnabled = !maximized;
+        ResizeThumb.IsEnabled = !maximized;
+    }
 
     public void CheckHealth()
     {
@@ -271,6 +282,12 @@ public partial class BrowserTile : UserControl
     {
         ActivateRequested?.Invoke(this);
         Detach();
+    }
+
+    private void MaximizePaneButton_Click(object sender, RoutedEventArgs e)
+    {
+        ActivateRequested?.Invoke(this);
+        MaximizeRequested?.Invoke(this);
     }
 
     private void ClosePaneButton_Click(object sender, RoutedEventArgs e)
