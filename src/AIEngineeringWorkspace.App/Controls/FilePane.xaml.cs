@@ -28,7 +28,7 @@ public partial class FilePane : UserControl
     public event Action<FilePane>? MoveStarted;
     public event Action<FilePane, double, double>? MoveRequested;
     public event Action<FilePane>? MoveCompleted;
-    public event Action<FilePane, double, double>? ResizeRequested;
+    public event Action<FilePane, PaneResizeDirection, double, double>? ResizeRequested;
     public event Action<FilePane>? ActivateRequested;
 
     internal PaneIdentity Identity { get; private set; } = PaneIdentity.Create(PaneKind.File, 1);
@@ -673,10 +673,17 @@ public partial class FilePane : UserControl
     private void MoveThumb_DragCompleted(object sender, DragCompletedEventArgs e)
         => MoveCompleted?.Invoke(this);
 
-    private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    private void PaneBorderResize_DragDelta(object sender, DragDeltaEventArgs e)
     {
+        if (sender is not Thumb thumb ||
+            thumb.Tag is not string directionText ||
+            !Enum.TryParse<PaneResizeDirection>(directionText, out var direction))
+        {
+            return;
+        }
+
         ActivateRequested?.Invoke(this);
-        ResizeRequested?.Invoke(this, e.HorizontalChange, e.VerticalChange);
+        ResizeRequested?.Invoke(this, direction, e.HorizontalChange, e.VerticalChange);
     }
 
     private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)

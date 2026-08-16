@@ -217,7 +217,7 @@ internal static class NativeMethods
         [In] INPUT[] inputs,
         int inputSize);
 
-    [DllImport("user32.dll")]
+    [DllImport("kernel32.dll")]
     internal static extern uint GetCurrentThreadId();
 
     [DllImport("user32.dll")]

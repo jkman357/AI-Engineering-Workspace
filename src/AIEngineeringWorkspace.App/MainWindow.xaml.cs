@@ -277,8 +277,8 @@ public partial class MainWindow : Window
     private void BrowserPane_MoveCompleted(BrowserTile tile) => CompletePaneMove(tile);
     private void FilePane_MoveCompleted(FilePane pane) => CompletePaneMove(pane);
 
-    private void BrowserPane_ResizeRequested(BrowserTile tile, double dw, double dh) => ResizePane(tile, dw, dh);
-    private void FilePane_ResizeRequested(FilePane pane, double dw, double dh) => ResizePane(pane, dw, dh);
+    private void BrowserPane_ResizeRequested(BrowserTile tile, PaneResizeDirection direction, double dx, double dy) => ResizePane(tile, direction, dx, dy);
+    private void FilePane_ResizeRequested(FilePane pane, PaneResizeDirection direction, double dx, double dy) => ResizePane(pane, direction, dx, dy);
 
     private void BrowserPane_ActivateRequested(BrowserTile tile) => BringToFront(tile);
     private void FilePane_ActivateRequested(FilePane pane) => BringToFront(pane);
@@ -340,58 +340,77 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ResizePane(FrameworkElement pane, double dw, double dh)
+    private void ResizePane(FrameworkElement pane, PaneResizeDirection direction, double dx, double dy)
     {
         if (_autoFitLayout)
         {
-            SetLayoutMode(false, "Manual pane resize");
+            SetLayoutMode(false, "Manual pane border resize");
         }
 
-        var currentWidth = double.IsNaN(pane.Width) ? pane.ActualWidth : pane.Width;
-        var currentHeight = double.IsNaN(pane.Height) ? pane.ActualHeight : pane.Height;
-        var desiredWidth = Math.Max(pane.MinWidth, currentWidth + dw);
-        var desiredHeight = Math.Max(pane.MinHeight, currentHeight + dh);
+        var width = double.IsNaN(pane.Width) ? pane.ActualWidth : pane.Width;
+        var height = double.IsNaN(pane.Height) ? pane.ActualHeight : pane.Height;
         var position = GetPanePosition(pane);
+        var left = position.X;
+        var top = position.Y;
 
-        var maxWidth = double.PositiveInfinity;
-        var maxHeight = double.PositiveInfinity;
-        var currentVertical = new Rect(position.X, position.Y, currentWidth, currentHeight);
+        var resizeLeft = direction is PaneResizeDirection.Left or PaneResizeDirection.TopLeft or PaneResizeDirection.BottomLeft;
+        var resizeRight = direction is PaneResizeDirection.Right or PaneResizeDirection.TopRight or PaneResizeDirection.BottomRight;
+        var resizeTop = direction is PaneResizeDirection.Top or PaneResizeDirection.TopLeft or PaneResizeDirection.TopRight;
+        var resizeBottom = direction is PaneResizeDirection.Bottom or PaneResizeDirection.BottomLeft or PaneResizeDirection.BottomRight;
 
-        foreach (var other in GetAllPanes().Where(other => !ReferenceEquals(other, pane)))
+        if (resizeLeft)
         {
-            var otherRect = GetPaneRect(other);
-
-            var verticalOverlap = Math.Min(currentVertical.Bottom, otherRect.Bottom) - Math.Max(currentVertical.Top, otherRect.Top);
-            if (verticalOverlap > 0 && otherRect.Left >= position.X + pane.MinWidth)
+            var effectiveDx = dx;
+            if (width - effectiveDx < pane.MinWidth)
             {
-                maxWidth = Math.Min(maxWidth, otherRect.Left - position.X - PaneGap);
+                effectiveDx = width - pane.MinWidth;
             }
 
-            var horizontalOverlap = Math.Min(position.X + currentWidth, otherRect.Right) - Math.Max(position.X, otherRect.Left);
-            if (horizontalOverlap > 0 && otherRect.Top >= position.Y + pane.MinHeight)
+            if (left + effectiveDx < 0)
             {
-                maxHeight = Math.Min(maxHeight, otherRect.Top - position.Y - PaneGap);
+                effectiveDx = -left;
             }
-        }
 
-        if (!double.IsPositiveInfinity(maxWidth))
+            left += effectiveDx;
+            width -= effectiveDx;
+        }
+        else if (resizeRight)
         {
-            desiredWidth = Math.Min(desiredWidth, Math.Max(pane.MinWidth, maxWidth));
+            width = Math.Max(pane.MinWidth, width + dx);
         }
 
-        if (!double.IsPositiveInfinity(maxHeight))
+        if (resizeTop)
         {
-            desiredHeight = Math.Min(desiredHeight, Math.Max(pane.MinHeight, maxHeight));
+            var effectiveDy = dy;
+            if (height - effectiveDy < pane.MinHeight)
+            {
+                effectiveDy = height - pane.MinHeight;
+            }
+
+            if (top + effectiveDy < 0)
+            {
+                effectiveDy = -top;
+            }
+
+            top += effectiveDy;
+            height -= effectiveDy;
+        }
+        else if (resizeBottom)
+        {
+            height = Math.Max(pane.MinHeight, height + dy);
         }
 
-        pane.Width = desiredWidth;
-        pane.Height = desiredHeight;
+        pane.Width = width;
+        pane.Height = height;
+        SetPanePosition(pane, new Point(left, top));
         EnsureCanvasBounds(pane);
+
         if (pane is BrowserTile browser)
         {
             browser.FitBrowserToPane();
         }
-        SetWorkspaceStatus($"Resized {GetAlias(pane)} to {desiredWidth:0}×{desiredHeight:0}.");
+
+        SetWorkspaceStatus($"Resized {GetAlias(pane)} from {direction} to {width:0}×{height:0} at ({left:0},{top:0}).");
     }
 
     private void SetLayoutMode(bool autoFit, string reason)

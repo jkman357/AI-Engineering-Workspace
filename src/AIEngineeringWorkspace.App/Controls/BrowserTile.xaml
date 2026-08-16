@@ -5,7 +5,8 @@
              MinHeight="260"
              PreviewMouseDown="UserControl_PreviewMouseDown"
              SizeChanged="UserControl_SizeChanged">
-    <Border BorderBrush="#8A8A8A" BorderThickness="1" CornerRadius="2" Background="White">
+    <Grid>
+        <Border Margin="5" BorderBrush="#8A8A8A" BorderThickness="1" CornerRadius="2" Background="White">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -151,24 +152,33 @@
                                Text="Ready."
                                TextTrimming="CharacterEllipsis"
                                ToolTip="Ready." />
-                    <Thumb x:Name="ResizeThumb"
-                           Grid.Column="1"
-                           Width="18"
-                           Height="18"
-                           Margin="6,0,0,0"
-                           Cursor="SizeNWSE"
-                           DragDelta="ResizeThumb_DragDelta"
-                           ToolTip="Drag to resize this pane">
-                        <Thumb.Template>
-                            <ControlTemplate TargetType="Thumb">
-                                <Border BorderBrush="#A8A8A8" BorderThickness="1" Background="#E7E7E7" CornerRadius="2">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" Foreground="#555555" Text="◢" />
-                                </Border>
-                            </ControlTemplate>
-                        </Thumb.Template>
-                    </Thumb>
                 </Grid>
             </Border>
         </Grid>
-    </Border>
+        </Border>
+
+        <Grid x:Name="ResizeChrome">
+            <Grid.Resources>
+                <Style TargetType="{x:Type Thumb}">
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                <Border />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Grid.Resources>
+            <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="10" Margin="0,12,0,12" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag left edge to resize" />
+            <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="10" Margin="0,12,0,12" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag right edge to resize" />
+            <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="10" Margin="12,0,12,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top edge to resize" />
+            <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="10" Margin="12,0,12,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom edge to resize" />
+
+            <Thumb Tag="TopLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Width="14" Height="14" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-left corner to resize" />
+            <Thumb Tag="TopRight" HorizontalAlignment="Right" VerticalAlignment="Top" Width="14" Height="14" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-right corner to resize" />
+            <Thumb Tag="BottomLeft" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="14" Height="14" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-left corner to resize" />
+            <Thumb Tag="BottomRight" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="14" Height="14" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-right corner to resize" />
+        </Grid>
+    </Grid>
 </UserControl>

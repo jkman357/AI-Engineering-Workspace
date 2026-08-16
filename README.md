@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc04**
+Current version: **v0.0.6rc05**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -30,41 +30,47 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
+## v0.0.6rc05 — Free Layout Border Resize + Focus P/Invoke Fix
+
+This RC continues the active **v0.0.6** line and fixes issues found during real-machine testing of `v0.0.6rc04`. The release is not frozen.
+
+### True Free Layout border resize
+
+Free Layout pane resizing is no longer limited to the small lower-right `◢` grip.
+
+Each File/Browser pane now supports direct resize from:
+
+- left / right edges;
+- top / bottom edges;
+- top-left / top-right corners;
+- bottom-left / bottom-right corners.
+
+Standard WPF resize cursors are used for each direction. Browser/File content is inset slightly so a WPF-owned resize band remains available around the pane; this is important for Browser panes because the embedded Firefox HWND is a foreign native window and can otherwise consume pointer input over its client region.
+
+Resizing from the left or top moves the pane origin while keeping the opposite edge stable. Minimum pane size and non-negative top/left workspace coordinates are enforced. A docked Firefox HWND continues to follow the Browser pane size.
+
+### Win32 focus bridge correction
+
+`v0.0.6rc04` introduced richer Firefox focus diagnostics, but real-machine testing exposed an incorrect P/Invoke declaration:
+
+```text
+GetCurrentThreadId
+```
+
+The function is now imported from `kernel32.dll` instead of `user32.dll`. This removes the observed `Unable to find an entry point named 'GetCurrentThreadId' in DLL 'user32.dll'` Launch + Dock failure.
+
+The Browser input-focus bridge and compact icon toolbar from rc04 are retained.
+
 ## v0.0.6rc04 — Browser Input Focus + Toolbar UX
 
-This RC continues the active **v0.0.6** line and focuses on the browser-input issue found during real-machine testing. The release is not frozen.
-
-### Browser keyboard/input focus hardening
-
-The Browser dock is still a real external Firefox HWND hosted inside WPF. `v0.0.6rc04` adds a best-effort Win32 focus bridge so browser input is not intentionally left trapped in the Firefox address bar after Workspace URL navigation.
+`v0.0.6rc04` added a best-effort Win32 focus bridge for the real external Firefox HWND hosted inside WPF.
 
 - the WPF URL TextBox releases keyboard focus when Enter is pressed;
 - after `Ctrl+L` + URL + Enter navigation, the host attempts to return Win32 focus to Firefox web content;
-- the dock host enumerates Firefox child HWNDs and prefers a visible `MozillaCompositorWindowClass`/Mozilla content surface when available;
-- focus transfer records root HWND, selected focus HWND, process/thread IDs, foreground HWND, and focus evidence in runtime diagnostics;
-- WPF tab/focus entry into `BrowserDockHost` is bridged toward Firefox content;
-- the Focus command remains as a manual recovery/diagnostic action, but normal page text entry should not require pressing it before every input.
-
-Acceptance target:
-
-```text
-Dock Firefox / open ChatGPT
-        ↓
-click the ChatGPT prompt inside the docked browser
-        ↓
-type normally
-        ↓
-text must enter the web page, not remain trapped in the address bar
-```
-
-### Compact Browser toolbar
-
-The Browser actions are compact icon buttons with hover tooltips:
-
-- `▶` — Launch a new Firefox window and dock it
-- `⇲` — Dock the single existing Firefox window
-- `⌖` — recover web-content keyboard focus
-- `↗` — detach and restore the Firefox window
+- the dock host enumerates Firefox child HWNDs and prefers a visible Mozilla content/compositor surface when available;
+- focus diagnostics include root/target HWND, PID/thread, foreground HWND, and focus evidence;
+- the Focus command remains a manual recovery/diagnostic action rather than a required step before normal page input;
+- Browser actions use compact icon buttons with tooltips: `▶`, `⇲`, `⌖`, `↗`.
 
 ## v0.0.6rc03 — Adaptive Workspace + File Manager UX + Security Hardening
 
@@ -84,7 +90,7 @@ The Workspace now has two layout modes.
 **Free Layout** preserves manual geometry:
 
 - panes can be dragged freely with the `⋮⋮` handle;
-- panes can be resized with the lower-right `◢` grip;
+- panes can be resized directly from any edge or corner;
 - dragging a pane onto another pane can exchange their positions;
 - manual move/resize automatically changes Auto Fit to Free Layout so the Workspace does not immediately undo the user's manual geometry.
 
@@ -216,7 +222,7 @@ When no repository root can be found, the fallback location is:
 %LOCALAPPDATA%\AIEngineeringWorkspace\logs\runtime\
 ```
 
-Default runtime-log policy in `v0.0.6rc03`:
+Default runtime-log policy in the current `v0.0.6` RC line:
 
 - retention age: **14 days**;
 - maximum retained runtime files: **50**;
@@ -297,20 +303,21 @@ run.cmd
 
 Launcher/application diagnostics are written under `logs\runtime\` when logging is enabled.
 
-## v0.0.6rc04 test focus
+## v0.0.6rc05 test focus / resize
 
-1. Run `build.cmd`.
-2. Run `run.cmd`.
-3. Launch + Dock Firefox in `B1`.
-4. Open ChatGPT (or another page with a normal text input) in the docked Firefox.
-5. Click the page text input and type without pressing the Workspace Focus button first; text must enter the web page rather than the Firefox address bar.
-6. Enter `www.yahoo.com.tw` in the Workspace URL field and press Enter; only that Browser endpoint should navigate.
-7. After navigation, click a web-page input and type again; keyboard focus must be usable in page content.
-8. Exercise `▶`, `⇲`, `⌖`, and `↗`; verify each tooltip matches its action.
-9. Use `⌖` after deliberately moving focus to another WPF control; verify it acts as a browser-content focus recovery command.
-10. Re-test Browser maximize/restore, resize, Auto Fit/Free Layout, and Detach to ensure the focus changes did not break lifecycle behavior.
-11. Exit the Workspace and verify Workspace-launched Firefox windows still close gracefully.
-12. If input still becomes trapped, attach the `logs\runtime\AIEngineeringWorkspace_*.log` file; rc04 records the selected Firefox content HWND and focus/thread evidence.
+1. Run `build.cmd` and then `run.cmd`.
+2. Launch + Dock Firefox in `B1`; the previous `GetCurrentThreadId` entry-point error must not occur.
+3. Switch to Free Layout, or start a border resize while Auto Fit is active and verify the Workspace switches to Free Layout.
+4. Resize a File pane from left, right, top, bottom, and all four corners.
+5. Repeat the same eight-direction resize on a Browser pane with Firefox docked.
+6. Verify the cursor changes to horizontal, vertical, or diagonal resize cursors at the appropriate border/corner.
+7. Verify the docked Firefox client region follows the Browser pane continuously and remains usable after resize.
+8. Verify left/top resize changes the pane origin without allowing negative workspace coordinates or violating minimum pane size.
+9. Open ChatGPT (or another page with a normal text input), click the page input, and type without pressing the Workspace Focus button first.
+10. Enter `www.yahoo.com.tw` in the Workspace URL field and press Enter; only that Browser endpoint should navigate.
+11. Exercise `▶`, `⇲`, `⌖`, and `↗`; verify each tooltip matches its action.
+12. Re-test Browser maximize/restore, Detach, Auto Fit, File Manager sorting/actions, and Workspace shutdown lifecycle.
+13. If Browser input focus still fails, attach `logs\runtime\AIEngineeringWorkspace_*.log`; rc05 retains the focus/thread/HWND diagnostics added in rc04.
 
 ## Current limits / non-goals
 

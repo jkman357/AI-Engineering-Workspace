@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.6rc05
+
+- fix `GetCurrentThreadId` P/Invoke to use `kernel32.dll` instead of `user32.dll`
+- replace the lower-right-only pane resize grip with true eight-direction edge/corner resize chrome
+- add left, right, top, bottom, top-left, top-right, bottom-left, and bottom-right resize directions
+- add standard horizontal, vertical, and diagonal resize cursors
+- inset pane content to keep a WPF-owned resize hit band available around Browser/File panes, including around a foreign Firefox HWND
+- make left/top resize update pane position while preserving the opposite edge
+- enforce minimum pane dimensions and prevent negative top/left workspace coordinates
+- keep a docked Firefox HWND fitted to its Browser pane during resize
+- remove the old visible `◢` lower-right resize grip
+- retain rc04 Browser focus diagnostics, input bridge, toolbar icons/tooltips, adaptive layout, File Manager UX, security wording, and MIT license
+
 ## v0.0.6rc04
 
 - release WPF keyboard focus from the Workspace URL TextBox before transferring input to Firefox

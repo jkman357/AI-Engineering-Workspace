@@ -1,14 +1,15 @@
-fix: harden docked Firefox input focus and toolbar UX in v0.0.6rc04
+fix: add true Free Layout border resize and correct Win32 thread P/Invoke in v0.0.6rc05
 
-- continue the active v0.0.6 RC line without freezing or advancing the version
-- release WPF URL TextBox keyboard focus before transferring input to a docked Firefox HWND
-- add a best-effort Win32 browser-content focus bridge for cross-process HwndHost docking
-- enumerate visible Firefox child HWNDs and prefer Mozilla compositor/content surfaces as keyboard-focus targets
-- return focus toward Firefox web content after Ctrl+L URL navigation so input is not intentionally left in the address bar
-- bridge WPF Tab/GotKeyboardFocus entry into BrowserDockHost toward the Firefox content surface
-- keep Focus as an explicit recovery and diagnostic action rather than a normal per-input requirement
-- add runtime focus diagnostics for root/target HWND, PID/thread, foreground HWND, previous/current focus HWND, and AttachThreadInput state
-- replace Browser Launch + Dock, Dock Existing, Focus, and Detach text controls with compact icon buttons and hover tooltips
-- retain adaptive layout, Browser maximize/restore, File Manager sorting/actions, diagnostics policy, security wording, standard-user design, and Firefox lifecycle ownership from v0.0.6rc03
+- continue the active v0.0.6 RC line without freezing or advancing the minor version
+- correct GetCurrentThreadId P/Invoke from user32.dll to kernel32.dll
+- replace the lower-right-only resize grip with eight-direction pane border/corner resize chrome
+- support left, right, top, bottom, top-left, top-right, bottom-left, and bottom-right resize operations
+- add standard horizontal, vertical, and diagonal resize cursors with edge/corner tooltips
+- inset Browser/File pane content to preserve a WPF-owned resize hit band outside foreign Firefox HWND content
+- update pane position correctly when resizing from the left or top while preserving the opposite edge
+- enforce minimum pane size and prevent negative top/left workspace coordinates
+- keep docked Firefox HWND content fitted to Browser pane geometry during live resize
+- remove the old visible lower-right resize grip
+- retain rc04 browser input-focus bridge, focus diagnostics, compact toolbar icons/tooltips, adaptive layout, File Manager UX, security hardening, diagnostics policy, and lifecycle behavior
 - retain the MIT License unchanged
-- update README, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc04
+- update README, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc05

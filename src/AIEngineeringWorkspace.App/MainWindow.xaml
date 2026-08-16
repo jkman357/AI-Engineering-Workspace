@@ -1,7 +1,7 @@
 <Window x:Class="AIEngineeringWorkspace.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI Engineering Workspace — v0.0.6rc04"
+        Title="AI Engineering Workspace — v0.0.6rc05"
         Width="1700"
         Height="960"
         MinWidth="1280"
@@ -18,7 +18,7 @@
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock FontSize="18" FontWeight="SemiBold" Text="AI Engineering Workspace" />
-                    <TextBlock Margin="10,3,0,0" Text="v0.0.6rc04 — Adaptive Workspace + File Manager UX + Security Hardening" />
+                    <TextBlock Margin="10,3,0,0" Text="v0.0.6rc05 — Free Layout Border Resize + Focus Fix" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">

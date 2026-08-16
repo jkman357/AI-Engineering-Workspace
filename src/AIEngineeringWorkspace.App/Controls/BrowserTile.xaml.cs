@@ -20,7 +20,7 @@ public partial class BrowserTile : UserControl
     public event Action<BrowserTile>? MoveStarted;
     public event Action<BrowserTile, double, double>? MoveRequested;
     public event Action<BrowserTile>? MoveCompleted;
-    public event Action<BrowserTile, double, double>? ResizeRequested;
+    public event Action<BrowserTile, PaneResizeDirection, double, double>? ResizeRequested;
     public event Action<BrowserTile>? ActivateRequested;
     public event Action<BrowserTile>? MaximizeRequested;
 
@@ -74,7 +74,7 @@ public partial class BrowserTile : UserControl
             ? "Restore this Browser pane to the Workspace layout"
             : "Maximize this Browser pane inside the Workspace";
         MoveThumb.IsEnabled = !maximized;
-        ResizeThumb.IsEnabled = !maximized;
+        ResizeChrome.IsHitTestVisible = !maximized;
     }
 
     public void CheckHealth()
@@ -313,10 +313,17 @@ public partial class BrowserTile : UserControl
     private void MoveThumb_DragCompleted(object sender, DragCompletedEventArgs e)
         => MoveCompleted?.Invoke(this);
 
-    private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    private void PaneBorderResize_DragDelta(object sender, DragDeltaEventArgs e)
     {
+        if (sender is not Thumb thumb ||
+            thumb.Tag is not string directionText ||
+            !Enum.TryParse<PaneResizeDirection>(directionText, out var direction))
+        {
+            return;
+        }
+
         ActivateRequested?.Invoke(this);
-        ResizeRequested?.Invoke(this, e.HorizontalChange, e.VerticalChange);
+        ResizeRequested?.Invoke(this, direction, e.HorizontalChange, e.VerticalChange);
     }
 
     private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
