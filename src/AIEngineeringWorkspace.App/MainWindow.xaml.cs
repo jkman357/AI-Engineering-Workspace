@@ -31,12 +31,13 @@ public partial class MainWindow : Window
     private string? _currentWorkspacePath;
     private bool _workspaceDirty;
     private bool _suppressDirtyTracking;
+    private int _newWorkspaceResetCount;
 
     public MainWindow()
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Workspace Project Save/Load + Endpoint UI";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Workspace Project UX + Endpoint Badge Fix";
 
         _healthTimer = new DispatcherTimer
         {
@@ -804,13 +805,21 @@ public partial class MainWindow : Window
     {
         if (!ConfirmReplaceWorkspace())
         {
+            SetWorkspaceStatus("New Workspace canceled; the current Workspace was left unchanged.");
             return;
         }
 
+        ResetWorkspaceToDefaults();
+    }
+
+    private void ResetWorkspaceToDefaults()
+    {
         try
         {
             _suppressDirtyTracking = true;
+            _newWorkspaceResetCount++;
             ClearWorkspacePanes();
+            _zCounter = 1;
             _currentWorkspacePath = null;
             _showEndpointIds = false;
             _autoFitLayout = true;
@@ -821,7 +830,21 @@ public partial class MainWindow : Window
             LayoutModeButton.ToolTip = "Auto Fit layout is ON. Panes automatically fill the available Workspace. Click for Free Layout.";
             ShowIdsButton.ToolTip = "Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";
             SetWorkspaceDirty(false);
-            SetWorkspaceStatus("New Workspace project created. Browser panes launch Google; File paths start from the standard defaults.");
+
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            var status = $"New Workspace project created at {timestamp} (reset #{_newWorkspaceResetCount}). Browser panes launch Google; File paths use the standard defaults.";
+            SetWorkspaceStatus(status);
+            RuntimeLog.Info($"New Workspace reset completed. Sequence={_newWorkspaceResetCount}; BrowserPanes={_browserPanes.Count}; FilePanes={_filePanes.Count}; AutoFit={_autoFitLayout}; ShowIds={_showEndpointIds}");
+
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (_autoFitLayout && _maximizedPane is null)
+                {
+                    ApplyAutoFitLayout();
+                }
+                WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+                WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+            }, DispatcherPriority.Loaded);
         }
         finally
         {

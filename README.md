@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc10**
+Current version: **v0.0.6rc11**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -31,6 +31,17 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+
+## v0.0.6rc11 — Workspace Project UX + Endpoint Badge Fix
+
+This RC follows the rc10 Workspace-project POC and fixes three usability issues found during Windows validation:
+
+- Show IDs now expands a **64×64 endpoint badge inside WPF-owned header chrome** for both File and Browser panes. The Browser badge is no longer drawn over the hosted Firefox HWND, avoiding the WPF/Win32 airspace conflict. The pane frame is also highlighted with the endpoint color while Show IDs is active.
+- Visible version strings are kept compact (`v0.0.6rc11`). `Directory.Build.props` disables automatic source-revision suffixing in `InformationalVersion`, and `AppInfo` defensively removes `+metadata` before displaying a version. Commit/source revision evidence remains appropriate for build/runtime logs rather than the title bar.
+- **New Workspace** is a deterministic reset action on every click. It clears the current project path/panes, recreates the default F1/F2 + B1-B4 Auto Fit workspace, resets Show IDs, and posts timestamped/reset-sequence feedback so repeated New commands are visibly acknowledged.
+
+The `.aew` schema and credential/privacy boundaries are unchanged from rc10. Browser URLs, sessions, cookies, passwords, and credentials are still not persisted by Workspace-project files.
 
 ## v0.0.6rc10 — Workspace Project Save/Load + Endpoint UI
 
@@ -408,7 +419,7 @@ Launcher/application diagnostics are written under `logs\runtime\` when logging 
 9. Re-test Browser Launch + Dock, normal page keyboard input, Focus recovery, Detach, pane maximize/restore, and Workspace shutdown lifecycle.
 10. If repaint/focus/Shell behavior fails, attach the runtime log and note the pane alias, selected file type (if applicable), and exact action sequence.
 
-## v0.0.6rc10 validation focus
+## v0.0.6rc11 validation focus
 
 1. Run `build.cmd`, then `test.cmd`; both must return exit code 0 before GUI testing.
 2. Arrange panes in Free Layout, change File paths, enable Show IDs, and save a `.aew` project. Close/reopen it and verify pane aliases, `PaneId`-backed identity, geometry, layout mode, File paths, and Show IDs state are restored.
@@ -417,7 +428,7 @@ Launcher/application diagnostics are written under `logs\runtime\` when logging 
 5. Verify compact boxed `F#` / `B#` aliases remain visible. Toggle `#` and verify the large endpoint overlay is approximately 64×64 and color-coded.
 6. Modify pane position/size/path after saving and confirm the title gains `*`. Verify New/Open/application Close prompts allow Save / Don't Save / Cancel behavior.
 7. Re-run rc09 review-hardening checks: Auto Fit must not overlap, Git decoration must remain asynchronous, and pending Firefox launch cleanup must not orphan a Workspace-launched window.
-8. Check executable/file/log metadata: rc10 artifacts must identify `v0.0.6rc10` / `0.0.6.10`.
+8. Check executable/file/log metadata: rc11 artifacts must identify `v0.0.6rc11` / `0.0.6.11` without a visible `+<source-revision>` suffix.
 
 ## Current limits / non-goals
 

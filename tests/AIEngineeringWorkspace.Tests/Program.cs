@@ -7,9 +7,11 @@ Run("AutoFit_12Panes_NoOverlap", TestAutoFit12PanesNoOverlap);
 Run("AutoFit_SinglePane_FillsViewport", TestSinglePaneFill);
 Run("GitPorcelain_Rename_UsesDestinationPath", TestRenameUsesDestination);
 Run("GitBadge_Xaml_CollapsesEmptyGlyph", TestGitBadgeCollapsed);
-Run("Version_SingleSource_IsRc10", TestVersionSource);
+Run("Version_SingleSource_IsRc11", TestVersionSource);
 Run("WorkspaceProject_RoundTrip_PreservesLayoutAndFilePath", TestWorkspaceProjectRoundTrip);
-Run("EndpointBadge_ShowIds_Uses64x64Overlay", TestEndpointBadgeSize);
+Run("EndpointBadge_ShowIds_Uses64x64Header", TestEndpointBadgeSize);
+Run("Version_DisplaySuppressesSourceRevision", TestVersionDisplaySuppressesSourceRevision);
+Run("NewWorkspace_RepeatedResetHasVisibleFeedback", TestNewWorkspaceFeedback);
 
 if (failures.Count == 0)
 {
@@ -86,9 +88,9 @@ void TestVersionSource()
     var propsPath = Path.Combine(root, "Directory.Build.props");
     var doc = XDocument.Load(propsPath);
     var values = doc.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value, StringComparer.OrdinalIgnoreCase);
-    Assert(values["WorkspaceVersionLabel"] == "v0.0.6rc10", "WorkspaceVersionLabel drift");
-    Assert(values["Version"] == "0.0.6-rc10", "package Version drift");
-    Assert(values["FileVersion"] == "0.0.6.10", "FileVersion drift");
+    Assert(values["WorkspaceVersionLabel"] == "v0.0.6rc11", "WorkspaceVersionLabel drift");
+    Assert(values["Version"] == "0.0.6-rc11", "package Version drift");
+    Assert(values["FileVersion"] == "0.0.6.11", "FileVersion drift");
 }
 
 void TestWorkspaceProjectRoundTrip()
@@ -99,7 +101,7 @@ void TestWorkspaceProjectRoundTrip()
         var paneId = Guid.NewGuid();
         var project = new WorkspaceProjectDocument
         {
-            ApplicationVersion = "v0.0.6rc10",
+            ApplicationVersion = "v0.0.6rc11",
             LayoutMode = WorkspaceLayoutMode.FreeLayout,
             ShowEndpointIds = true,
             Panes = new List<WorkspacePaneState>
@@ -151,9 +153,30 @@ void TestEndpointBadgeSize()
     foreach (var file in new[] { "BrowserTile.xaml", "FilePane.xaml" })
     {
         var xaml = File.ReadAllText(Path.Combine(root, "src", "AIEngineeringWorkspace.App", "Controls", file));
-        Assert(xaml.Contains("x:Name=\"EndpointOverlayBadgeBorder\"", StringComparison.Ordinal), $"{file} large endpoint badge missing");
+        Assert(xaml.Contains("x:Name=\"EndpointLargeBadgeBorder\"", StringComparison.Ordinal), $"{file} large endpoint header badge missing");
         Assert(xaml.Contains("Width=\"64\"", StringComparison.Ordinal) && xaml.Contains("Height=\"64\"", StringComparison.Ordinal), $"{file} endpoint badge is not 64x64");
+        Assert(!xaml.Contains("EndpointOverlayBadgeBorder", StringComparison.Ordinal), $"{file} still contains an in-content overlay badge");
+        Assert(xaml.Contains("x:Name=\"PaneFrameBorder\"", StringComparison.Ordinal), $"{file} highlighted pane frame missing");
     }
+}
+
+void TestVersionDisplaySuppressesSourceRevision()
+{
+    var root = FindRepositoryRoot();
+    var props = XDocument.Load(Path.Combine(root, "Directory.Build.props"));
+    var values = props.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value, StringComparer.OrdinalIgnoreCase);
+    Assert(values.TryGetValue("IncludeSourceRevisionInInformationalVersion", out var include) && string.Equals(include, "false", StringComparison.OrdinalIgnoreCase), "source revision suffix suppression missing");
+    var appInfo = File.ReadAllText(Path.Combine(root, "src", "AIEngineeringWorkspace.App", "Infrastructure", "AppInfo.cs"));
+    Assert(appInfo.Contains("IndexOf('+')", StringComparison.Ordinal), "AppInfo defensive '+' metadata stripping missing");
+}
+
+void TestNewWorkspaceFeedback()
+{
+    var root = FindRepositoryRoot();
+    var main = File.ReadAllText(Path.Combine(root, "src", "AIEngineeringWorkspace.App", "MainWindow.xaml.cs"));
+    Assert(main.Contains("ResetWorkspaceToDefaults()", StringComparison.Ordinal), "New Workspace reset helper missing");
+    Assert(main.Contains("_newWorkspaceResetCount++", StringComparison.Ordinal), "repeated New Workspace reset sequence feedback missing");
+    Assert(main.Contains("New Workspace project created at", StringComparison.Ordinal), "visible New Workspace timestamp feedback missing");
 }
 
 string FindRepositoryRoot()

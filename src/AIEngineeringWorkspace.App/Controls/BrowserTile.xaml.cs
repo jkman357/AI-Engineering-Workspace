@@ -54,15 +54,15 @@ public partial class BrowserTile : UserControl
         Identity = identity;
         TileTitleTextBlock.Text = identity.DisplayName;
         EndpointBadgeTextBlock.Text = identity.Alias;
-        EndpointOverlayBadgeTextBlock.Text = identity.Alias;
+        EndpointLargeBadgeTextBlock.Text = identity.Alias;
         EndpointBadgeBorder.ToolTip = $"Routing endpoint {identity.Alias}\nPaneId={identity.PaneId:D}";
         var badgeStyle = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
         EndpointBadgeBorder.Background = badgeStyle.Background;
         EndpointBadgeBorder.BorderBrush = badgeStyle.Border;
         EndpointBadgeTextBlock.Foreground = badgeStyle.Foreground;
-        EndpointOverlayBadgeBorder.Background = badgeStyle.Background;
-        EndpointOverlayBadgeBorder.BorderBrush = badgeStyle.Border;
-        EndpointOverlayBadgeTextBlock.Foreground = badgeStyle.Foreground;
+        EndpointLargeBadgeBorder.Background = badgeStyle.Background;
+        EndpointLargeBadgeBorder.BorderBrush = badgeStyle.Border;
+        EndpointLargeBadgeTextBlock.Foreground = badgeStyle.Foreground;
         _initialUrl = string.IsNullOrWhiteSpace(initialUrl) ? "https://www.google.com/" : initialUrl;
         UpdateBrowserControls();
         SetStatus("Ready.");
@@ -70,7 +70,11 @@ public partial class BrowserTile : UserControl
     }
 
     internal void SetEndpointIdVisibility(bool visible)
-        => EndpointOverlayBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    {
+        EndpointLargeBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        PaneFrameBorder.BorderBrush = visible ? EndpointBadgeBorder.BorderBrush : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A));
+        PaneFrameBorder.BorderThickness = visible ? new Thickness(3) : new Thickness(1);
+    }
 
 
     internal void FitBrowserToPane()

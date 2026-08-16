@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.6rc11
+
+- move the 64×64 Show IDs endpoint badge into WPF-owned pane header chrome so Browser badges remain visible above the hosted Firefox HWND airspace boundary;
+- highlight the full pane frame with the endpoint color while Show IDs is enabled, for both Browser and File panes;
+- disable SDK source-revision suffixing in `InformationalVersion` and defensively strip `+metadata` from UI version display;
+- make every New Workspace command execute a full default-workspace reset and provide timestamped/reset-sequence status feedback;
+- retain rc10 `.aew` persistence behavior and Browser-session/credential exclusions;
+- add regression checks for header-owned 64×64 badges, source-revision display suppression, and repeat-New feedback;
+- stamp application/build/test metadata as `v0.0.6rc11` / `0.0.6.11`.
+
 ## v0.0.6rc10
 
 - add New / Open / Save / Save As Workspace-project commands with a human-readable `.aew` JSON format;

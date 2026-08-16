@@ -22,7 +22,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="NewWorkspaceButton_Click" ToolTip="New Workspace project">
+                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="NewWorkspaceButton_Click" ToolTip="Reset to a new default Workspace project">
                         <TextBlock FontSize="16" Text="✦" />
                     </Button>
                     <Button Width="38" Height="30" Margin="0,0,6,0" Click="OpenWorkspaceButton_Click" ToolTip="Open Workspace project (.aew)">

@@ -1,20 +1,18 @@
-feat: add Workspace project persistence and endpoint UI cleanup in v0.0.6rc10
+fix: harden Workspace project UX and endpoint ID visibility in v0.0.6rc11
 
-- continue the active v0.0.6 RC line without freezing or advancing the version
-- add New, Open, Save, and Save As commands for AI Engineering Workspace project files
-- add a human-readable versioned .aew JSON format for persistent Workspace state
-- persist Auto Fit / Free Layout mode, pane kind, stable PaneId, F#/B# display index, X/Y position, width/height, Show IDs state, and main-window size/state
-- persist each File pane's current folder path and restore it when the Workspace project is reopened
-- fall back an unavailable saved File-pane path to the user's Desktop without failing the entire Workspace project load
-- intentionally exclude Browser current URL, browser history, cookies, login/session state, passwords, and credentials from the Workspace-project schema
-- reconstruct saved Browser panes as layout/routing endpoints and keep Launch + Dock startup at Google
-- add unsaved Workspace change tracking with a title-bar * marker and Save / Don't Save / Cancel prompts for New, Open, and application close
-- keep compact boxed F1-F4 / B1-B8 endpoint aliases permanently visible in pane headers and remove duplicate visible Files N / Browser N title text
-- add an optional 64x64 color-coded endpoint badge overlay when Show IDs is enabled
-- retain endpoint color as a human-facing cue only; routing identity remains the explicit alias plus stable PaneId GUID
-- add Workspace project round-trip regression coverage and verify Browser URL state is not represented in the persisted pane schema
-- add regression coverage for 64x64 Show IDs endpoint overlays and update the single-source rc10 version test
-- document .aew local-path metadata as a security/privacy boundary and keep credential/browser-profile wording unchanged
-- retain rc09 Auto Fit, asynchronous Git decoration, pending Firefox launch ownership hardening, native Windows Shell/TortoiseGit/7-Zip integration, diagnostics policy, standard-user design, API-free architecture, and the MIT License unchanged
-- stamp application/build/run/test metadata as v0.0.6rc10 / 0.0.6.10 from Directory.Build.props
-- update README, SECURITY.md, CHANGELOG, release notes, tests, and command-line version labels for v0.0.6rc10
+- continue the active v0.0.6 RC line without freezing or advancing the minor version
+- move the 64x64 Show IDs endpoint badge from an in-content WPF overlay into WPF-owned pane header chrome so hosted Firefox HWND airspace cannot hide Browser endpoint IDs
+- apply the same header-owned large endpoint badge pattern to File panes for consistent F1-F4 / B1-B8 behavior
+- highlight each Browser/File pane frame with its endpoint color while Show IDs is enabled and restore the neutral frame when IDs are hidden
+- keep compact endpoint badges permanently visible and preserve stable PaneId GUID routing identity independent of display color or layout position
+- disable automatic SDK SourceRevisionId suffixing in InformationalVersion so the title bar does not display +<commit-hash> metadata
+- defensively strip +metadata from AppInfo.DisplayVersion before presenting version text in the UI
+- stamp the active release as v0.0.6rc11 / 0.0.6-rc11 / FileVersion 0.0.6.11 from Directory.Build.props
+- make New Workspace a deterministic reset transaction on every invocation
+- clear the existing project path and panes, reset z-order, Show IDs and Auto Fit state, and reconstruct the default F1/F2 + B1-B4 Workspace on each New command
+- add explicit timestamped and reset-sequence status feedback so consecutive New Workspace commands are visibly acknowledged even when the resulting default layout looks identical
+- reapply Auto Fit and reset scroll offsets after a New Workspace reset settles on the WPF dispatcher
+- retain rc10 .aew Workspace project persistence, missing File-path Desktop fallback, Browser default-Google launch behavior, and exclusion of browser URL/session/cookie/password/credential state from project files
+- add regression checks for header-owned 64x64 endpoint badges, endpoint frame chrome, source-revision display suppression, and repeated New Workspace feedback
+- retain rc09/rc10 Auto Fit hardening, asynchronous Git decoration, Firefox launch ownership cleanup, native Windows Shell/TortoiseGit/7-Zip integration, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
+- update README, CHANGELOG, rc11 release notes, tests, and UI version description for v0.0.6rc11
