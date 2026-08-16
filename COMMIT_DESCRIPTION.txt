@@ -1,20 +1,22 @@
-test: isolate Firefox owner/style mutations with a zero-mutation baseline in v0.0.6rc20
+test: reduce Firefox integration to a launch-only control in v0.0.6rc21
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* use rc19 real-machine evidence that removing cross-process SetParent was not sufficient to restore Zhuyin/Chinese IME composition
-* keep Firefox as a native top-level HWND and turn rc20 into a strict A/B control for the two remaining rc19 native-window identity mutations
-* remove rc19 GWL_HWNDPARENT owner reassignment so the Workspace no longer becomes the Firefox top-level owner
-* remove all Firefox GWL_STYLE and GWL_EXSTYLE mutation and intentionally retain the normal Firefox title bar, border, caption, system menu, minimize/maximize controls, and native top-level style
-* keep BrowserDockHost only as a WPF-owned geometry anchor and mirror its screen rectangle to Firefox with SetWindowPos using SWP_NOACTIVATE
-* retain zero SetParent, zero AttachThreadInput, zero root SetFocus, zero HKL synchronization, zero synthetic IME composition, and zero Firefox child-HWND focus guessing
-* retain SetForegroundWindow only as the explicit Focus / TabIntoCore / keyboard-navigation recovery path, not as normal Browser input handling
-* retain pseudo-dock visibility synchronization for Workspace hide/minimize/restore and restore only the original Firefox window placement on detach because owner/style are never changed
-* expand diagnostics with OwnerMutation=False, StyleMutation=False, ExtendedStyleMutation=False, and NativeInputMode=ZeroMutationTopLevelPseudoDock
-* keep HKL, GetGUIThreadInfo, input-language, and IME diagnostics observation-only
-* add regression checks proving BrowserDockHost contains no Firefox owner reassignment, no Firefox style mutation, no SetParent, and no input-queue bridge/root-focus forcing
-* define the first real-machine gate as B1 only: type abc123, switch to Zhuyin, compose/commit 你好, then switch back to English/number without pressing Focus
-* if B1 Chinese passes, reintroduce owner and style mutations one at a time in later RCs before expanding the Browser-count gate; if it fails, treat owner/style as ruled out and investigate Firefox window/session/TSF behavior instead
-* stamp application/build/run/test metadata as v0.0.6rc20 / 0.0.6-rc20 / FileVersion 0.0.6.20 from Directory.Build.props
-* retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, 64x64 endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
+* use rc20 real-machine evidence that Zhuyin/Chinese input still fails after removing SetParent, owner reassignment, style mutation, persistent input bridging, root focus forcing, and HKL synchronization
+* use rc20 evidence that independent zero-owner top-level Firefox windows can be obscured by the Workspace when later Browser windows are launched, confirming pseudo-dock z-order as a separate UX limitation
+* turn rc21 into a strict Firefox launch-only control that launches/discovers a native top-level Firefox HWND and then stops modifying the live Firefox window
+* remove Firefox SetWindowPos geometry synchronization and stop translating Browser pane position/size, Workspace movement, viewport scrolling, Auto Fit, Free Layout, Show IDs, maximize/restore, or resize events into Firefox geometry changes
+* remove Workspace-driven Firefox visibility synchronization and do not hide/show Firefox when Browser panes or the Workspace are hidden, minimized, restored, or rearranged
+* remove detach-time Firefox SetWindowPlacement restoration because rc21 never changes Firefox placement
+* suppress the Focus toolbar recovery path in rc21 so Workspace does not call SetForegroundWindow or root SetFocus against Firefox during the control experiment
+* disable Workspace-driven SendInput Browser navigation in rc21 so Firefox keyboard/TSF/IME ownership remains completely native
+* retain no SetParent, no GWL_HWNDPARENT owner reassignment, no GWL_STYLE/GWL_EXSTYLE mutation, no AttachThreadInput, no HKL synchronization, no ActivateKeyboardLayout, no synthetic IME composition, and no Firefox child-HWND focus guessing
+* keep BrowserDockRegistry and per-pane launch ownership only for HWND identity, health diagnostics, duplicate assignment prevention, and graceful cleanup of Workspace-launched Firefox windows
+* retain read-only foreground, GetGUIThreadInfo, HKL, input-language, and IME diagnostics with NativeInputMode=LaunchOnlyControl
+* leave Firefox at its own native Windows position, size, frame, z-order, foreground/focus, TSF document context, and IME lifecycle
+* make Browser pane resize/visibility APIs intentional no-ops for Firefox in rc21 while preserving the existing Workspace layout and File Manager behavior
+* define the primary real-machine gate as B1 only: type abc123, switch to Zhuyin and compose/commit 你好, then return to English and type xyz789 without using Focus
+* if B1 Chinese still fails, treat Workspace-side Firefox window mutation/window management as ruled out and move the next investigation boundary to Firefox new-window/shared-process/shared-thread/TSF lifecycle
+* stamp application/build/run/test metadata as v0.0.6rc21 / 0.0.6-rc21 / FileVersion 0.0.6.21 from Directory.Build.props
+* retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
 * preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc20 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc20
+* update README, CHANGELOG, rc21 release notes, regression tests, commit description, tooltips, status wording, and UI/build metadata for v0.0.6rc21

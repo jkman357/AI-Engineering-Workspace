@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc20**
+Current version: **v0.0.6rc21**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -21,11 +21,11 @@ Runtime diagnostics are local engineering logs and may contain paths, URLs, HWND
 ```text
 Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
-│  ├─ zero-mutation native top-level Firefox baseline (geometry only)
-│  ├─ screen-rectangle synchronization to the WPF Browser pane
+│  ├─ rc21 launch-only Firefox control (HWND observation only)
+│  ├─ no parent / owner / style / geometry / visibility / focus mutation
 │  ├─ Firefox-native keyboard / TSF / IME ownership
 │  ├─ Workspace maximize / restore
-│  ├─ Launch + Dock / Dock Existing / Focus / Detach
+│  ├─ Launch + Track / Track Existing / diagnostic Focus suppression / Stop Tracking
 │  └─ per-window lifecycle ownership
 ├─ File Pane (F1 ... F4)
 │  ├─ Windows Shell file/folder icons
@@ -43,6 +43,24 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
+## v0.0.6rc21 — Firefox Launch-Only Control
+
+Real-machine rc20 testing ruled out `SetParent`, owner reassignment, style mutation, input-queue bridging, root focus forcing, and HKL synchronization as sufficient explanations for the Zhuyin failure. rc20 still moved/resized and showed/hid Firefox, so rc21 removes those last Workspace window-management variables too.
+
+rc21 is a strict launch/discovery control:
+
+- the Workspace launches Firefox and discovers the new native top-level HWND;
+- the HWND is tracked only for diagnostics and Workspace-owned shutdown cleanup;
+- no `SetParent`, `GWL_HWNDPARENT`, `GWL_STYLE`, or `GWL_EXSTYLE` mutation;
+- no `SetWindowPos`, `SetWindowPlacement`, or Workspace-driven `ShowWindow`;
+- no `AttachThreadInput`, `SetFocus`, `SetForegroundWindow`, `SendInput`, HKL synchronization, or synthetic IME composition;
+- Workspace move/resize/scroll/minimize/layout changes do not reposition, hide, show, or focus Firefox;
+- Firefox appears at its own native Windows position/size/Z-order. Browser panes are placeholders/launch endpoints only in this RC.
+
+The first gate remains deliberately small: launch **B1 only**, type `abc123`, switch to Zhuyin, and compose/commit `你好`. If this still fails, Workspace HWND mutation/window management is effectively ruled out and the next investigation boundary is the Firefox launch/new-window/session/TSF lifecycle itself.
+
+See `docs/releases/v0.0.6rc21.md`.
+
 ## v0.0.6rc20 — Zero-Mutation Firefox Baseline
 
 Real-machine rc19 testing showed that removing `SetParent` was **not sufficient** to restore Zhuyin/Chinese composition: English/number input worked, but Zhuyin still failed. rc20 therefore removes the two remaining native-window identity mutations from the pseudo-dock experiment.
@@ -56,7 +74,7 @@ In rc20 Firefox stays visually and structurally native:
 - the Firefox title bar and frame intentionally remain visible;
 - the Workspace only mirrors the Browser pane's screen rectangle with `SetWindowPos(... SWP_NOACTIVATE ...)` and may hide/show the window with Workspace visibility.
 
-This is an A/B control RC, not a UX target. The first gate is B1 only: `abc123` must work, then Zhuyin must compose/commit `你好`. If Chinese passes, rc21 can add owner and style mutations back **one at a time** to identify the offending mutation. If Chinese still fails, owner/style are ruled out and the investigation moves to Firefox window creation/session/TSF behavior rather than WPF focus APIs.
+This was an A/B control RC, not a UX target. Real-machine rc20 testing still failed Zhuyin and also showed that independent top-level Firefox windows could be obscured by the Workspace when new windows opened. rc21 therefore removes the remaining `SetWindowPos` and visibility management to create a true launch-only control.
 
 See `docs/releases/v0.0.6rc20.md`.
 
@@ -154,7 +172,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc20.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc21.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

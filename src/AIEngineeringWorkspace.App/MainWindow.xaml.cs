@@ -42,7 +42,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Zero-Mutation Firefox Baseline";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Firefox Launch-Only Control";
         SourceInitialized += (_, _) => InstallInputMessageDiagnostics();
         _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _healthTimer.Tick += (_, _) => { foreach (var tile in _browserPanes.ToArray()) tile.CheckHealth(); };
@@ -53,7 +53,7 @@ public partial class MainWindow : Window
                 if (!_workspaceInitialized) { CreateDefaultWorkspaceToFitViewport(); _workspaceInitialized = true; SetWorkspaceDirty(false); }
                 RuntimeLog.Info($"MainWindow loaded. BrowserPaneCount={_browserPanes.Count}; FilePaneCount={_filePanes.Count}; DefaultBrowserUrl='{DefaultBrowserUrl}'; RuntimeLog='{RuntimeLog.CurrentPath}'");
                 _healthTimer.Start();
-                SetWorkspaceStatus("Ready. Auto Fit fills the Workspace; drag/resize switches to Free Layout. Browser □ maximizes a pane inside the Workspace.");
+                SetWorkspaceStatus("Ready. rc21 launch-only control: Browser panes launch/track Firefox only; Firefox remains a normal independent Windows window.");
                 UpdatePaneCounts();
             }, DispatcherPriority.Loaded);
         };
@@ -74,8 +74,7 @@ public partial class MainWindow : Window
         {
             if (WindowState == System.Windows.WindowState.Minimized)
             {
-                foreach (var browser in _browserPanes) browser.SetPseudoDockVisible(false);
-                RuntimeLog.Info("MainWindow minimized; pseudo-docked Firefox top-level windows hidden.");
+                RuntimeLog.Info("MainWindow minimized; rc21 launch-only control leaves Firefox windows untouched.");
             }
             else
             {
@@ -124,17 +123,10 @@ public partial class MainWindow : Window
 
     private void SchedulePseudoDockGeometrySync(string reason)
     {
-        if (_closing || WindowState == System.Windows.WindowState.Minimized) return;
-        Dispatcher.InvokeAsync(() =>
-        {
-            if (_closing || WindowState == System.Windows.WindowState.Minimized) return;
-            foreach (var browser in _browserPanes.Where(x => x.HasDockedWindow))
-            {
-                browser.SetPseudoDockVisible(browser.IsVisible);
-                if (browser.IsVisible) browser.FitBrowserToPane();
-            }
-            RuntimeLog.Debug($"Pseudo-dock geometry synchronization completed. Reason='{reason}'; BrowserCount={_browserPanes.Count(x => x.HasDockedWindow)}");
-        }, DispatcherPriority.Render);
+        // Historical call site retained for layout compatibility. rc21 is a launch-only control:
+        // Workspace layout/move/scroll/minimize events must not move, resize, hide, show, or focus Firefox.
+        if (_closing) return;
+        RuntimeLog.Debug($"Launch-only control ignored Workspace geometry/visibility synchronization. Reason='{reason}'; TrackedBrowserCount={_browserPanes.Count(x => x.HasDockedWindow)}");
     }
 
     private void CreateDefaultWorkspaceToFitViewport()

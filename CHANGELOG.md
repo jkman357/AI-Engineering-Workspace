@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.6rc21
+
+- continue the active v0.0.6 RC line without freezing the release;
+- use rc20 real-machine evidence that Zhuyin still fails after removing Firefox parent, owner, style, input-queue, focus, and HKL mutations;
+- turn the Browser experiment into a strict Firefox launch-only control: launch a new Firefox window, discover its native top-level HWND, then stop modifying that window;
+- remove `SetWindowPos`, `SetWindowPlacement`, Workspace-driven `ShowWindow`, geometry synchronization, visibility synchronization, and detach-time placement restoration from the Browser path;
+- suppress explicit Workspace focus recovery and Workspace-driven keyboard navigation so rc21 uses no `SetForegroundWindow`, root `SetFocus`, `AttachThreadInput`, or `SendInput` against Firefox;
+- keep the tracked HWND only for health/foreground/HKL diagnostics, pane identity, duplicate-claim protection, and Workspace-owned Firefox shutdown cleanup;
+- leave Firefox at its own native Windows position, size, title bar, Z-order, focus, TSF, and IME lifecycle;
+- document B1-only `abc123` → Zhuyin → `你好` as the control gate before any multi-Browser UX work;
+- stamp metadata as `v0.0.6rc21` / `0.0.6-rc21` / FileVersion `0.0.6.21`.
+
 ## v0.0.6rc20
 
 - continue the active v0.0.6 RC line without freezing the release;

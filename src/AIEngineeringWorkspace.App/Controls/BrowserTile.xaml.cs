@@ -125,7 +125,7 @@ public partial class BrowserTile : UserControl
         BrowserHost.Detach();
         _dockedWindow = null;
         UpdateBrowserControls();
-        SetStatus(workspaceOwned ? "Firefox pseudo-dock detached and restored. This Workspace-launched window will close when Workspace exits." : "Firefox pseudo-dock detached and original window style/placement restored.");
+        SetStatus(workspaceOwned ? "Stopped launch-only tracking. This Workspace-launched Firefox window will close when Workspace exits." : "Stopped launch-only tracking. Firefox window was not modified.");
     }
 
     private async void LaunchButton_Click(object sender, RoutedEventArgs e) => await LaunchAndDockAsync();
@@ -174,7 +174,7 @@ public partial class BrowserTile : UserControl
         {
             Keyboard.ClearFocus();
             BrowserHost.FocusBrowser();
-            SetStatus(BrowserHost.IsDocked ? "Firefox top-level activation recovery requested." : "Nothing is pseudo-docked.");
+            SetStatus(BrowserHost.IsDocked ? "Focus mutation is disabled by the rc21 launch-only control; activate Firefox directly." : "No Firefox window is tracked.");
         }
         catch (Exception ex) { RuntimeLog.Error($"[{Identity.Alias}] Focus request failed.", ex); SetStatus($"Focus failed: {ex.Message}"); }
     }
@@ -209,7 +209,7 @@ public partial class BrowserTile : UserControl
         _dockedWindow = window;
         UpdateBrowserControls();
         BrowserHost.SetPseudoDockVisible(IsVisible);
-        SetStatus($"Pseudo-docked PID={window.ProcessId}, HWND={window.HwndHex}, Title='{window.Title}'");
+        SetStatus($"Launch-only PID={window.ProcessId}, HWND={window.HwndHex}, Title='{window.Title}'");
     }
 
     private void SetUiBusy(bool busy) { LaunchButton.IsEnabled = !busy; DockExistingButton.IsEnabled = !busy; ClosePaneButton.IsEnabled = !busy; MoveThumb.IsEnabled = !busy; }
