@@ -8,16 +8,30 @@ using AIEngineeringWorkspace.Interop;
 
 namespace AIEngineeringWorkspace.Controls;
 
+/// <summary>
+/// rc19 pseudo-dock host.
+///
+/// The HwndHost is only a native geometry anchor inside WPF. Firefox itself remains a
+/// native top-level HWND and is never reparented with SetParent. The Workspace mirrors
+/// the anchor rectangle to screen coordinates and positions the Firefox top-level window
+/// over that rectangle. This preserves Firefox/Windows ownership of keyboard, TSF and IME.
+/// </summary>
 public sealed class BrowserDockHost : HwndHost
 {
     private IntPtr _hostHwnd;
     private IntPtr _browserHwnd;
+    private IntPtr _workspaceTopLevelHwnd;
+    private IntPtr _originalOwnerHwnd;
     private IntPtr _originalStyle;
     private IntPtr _originalExStyle;
     private NativeMethods.WINDOWPLACEMENT _originalPlacement;
     private bool _hasOriginalPlacement;
+    private int _lastLeft = int.MinValue;
+    private int _lastTop = int.MinValue;
     private int _lastWidth = -1;
     private int _lastHeight = -1;
+    private bool _pseudoDockVisible = true;
+    private bool _wasForeground;
     private uint _workspaceInputThreadId;
 
     public event EventHandler? DockedWindowLost;
@@ -32,10 +46,11 @@ public sealed class BrowserDockHost : HwndHost
         const uint hostStyle = (uint)(NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.WS_CLIPCHILDREN | NativeMethods.WS_CLIPSIBLINGS);
         _hostHwnd = NativeMethods.CreateWindowEx(0, "static", string.Empty, hostStyle, 0, 0, 1, 1,
             hwndParent.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-        if (_hostHwnd == IntPtr.Zero) NativeMethods.ThrowLastWin32Error("CreateWindowEx for browser host failed");
+        if (_hostHwnd == IntPtr.Zero) NativeMethods.ThrowLastWin32Error("CreateWindowEx for browser geometry anchor failed");
 
         _workspaceInputThreadId = NativeMethods.GetCurrentThreadId();
-        RuntimeLog.Info($"Browser host HWND created: 0x{_hostHwnd.ToInt64():X}; WorkspaceInputThread={_workspaceInputThreadId}");
+        _workspaceTopLevelHwnd = NativeMethods.GetAncestor(_hostHwnd, NativeMethods.GA_ROOT);
+        RuntimeLog.Info($"Browser pseudo-dock anchor HWND created: 0x{_hostHwnd.ToInt64():X}; WorkspaceTopLevelHWND=0x{_workspaceTopLevelHwnd.ToInt64():X}; WorkspaceInputThread={_workspaceInputThreadId}");
         return new HandleRef(this, _hostHwnd);
     }
 
@@ -45,45 +60,19 @@ public sealed class BrowserDockHost : HwndHost
         finally
         {
             if (hwnd.Handle != IntPtr.Zero && NativeMethods.IsWindow(hwnd.Handle) && !NativeMethods.DestroyWindow(hwnd.Handle))
-                RuntimeLog.Warn($"DestroyWindow failed for host HWND=0x{hwnd.Handle.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}");
+                RuntimeLog.Warn($"DestroyWindow failed for pseudo-dock anchor HWND=0x{hwnd.Handle.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}");
             _hostHwnd = IntPtr.Zero;
+            _workspaceTopLevelHwnd = IntPtr.Zero;
         }
     }
-
 
     protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        InputLanguageDiagnostics.LogWindowMessage("BrowserDockHost", hwnd, msg, wParam, lParam);
-        if (IsDocked && IsNativeBrowserMouseDown(msg, wParam))
-        {
-            var reason = $"BrowserDockHost.WM_PARENTNOTIFY.MouseDown(0x{LowWord(wParam):X4})";
-            try
-            {
-                RuntimeLog.Debug($"Native Firefox activation observed in pass-through mode. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'");
-                FirefoxInputCoordinator.MarkActiveRoot(_browserHwnd, reason);
-                NativeBrowserActivated?.Invoke(this, EventArgs.Empty);
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Error($"Native Firefox activation observation failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'", ex);
-            }
-        }
-        else if (IsDocked && (uint)msg == NativeMethods.WM_MOUSEACTIVATE)
-        {
-            // rc18 observes activation only. Firefox receives the original mouse activation path
-            // without Workspace SetFocus/AttachThreadInput interference.
-            RuntimeLog.Debug($"Native Firefox WM_MOUSEACTIVATE observed in pass-through mode. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}");
-        }
+        // The anchor is not Firefox's parent in rc19, therefore normal Firefox mouse/IME
+        // messages do not traverse this WndProc. Keep diagnostics only for the WPF-owned anchor.
+        InputLanguageDiagnostics.LogWindowMessage("BrowserPseudoDockAnchor", hwnd, msg, wParam, lParam);
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
-
-    private static bool IsNativeBrowserMouseDown(int msg, IntPtr wParam)
-    {
-        if ((uint)msg != NativeMethods.WM_PARENTNOTIFY) return false;
-        return LowWord(wParam) is NativeMethods.WM_LBUTTONDOWN or NativeMethods.WM_RBUTTONDOWN or NativeMethods.WM_MBUTTONDOWN or NativeMethods.WM_XBUTTONDOWN;
-    }
-
-    private static uint LowWord(IntPtr value) => (uint)(value.ToInt64() & 0xFFFF);
 
     protected override void OnWindowPositionChanged(System.Windows.Rect rcBoundingBox)
     {
@@ -94,7 +83,7 @@ public sealed class BrowserDockHost : HwndHost
     protected override bool TabIntoCore(TraversalRequest request)
     {
         if (!IsDocked) return false;
-        FocusBrowser();
+        FocusBrowser("BrowserDockHost.TabIntoCore");
         return true;
     }
 
@@ -102,88 +91,81 @@ public sealed class BrowserDockHost : HwndHost
     {
         if (browserHwnd == IntPtr.Zero) throw new ArgumentException("Browser HWND cannot be zero.", nameof(browserHwnd));
         if (!NativeMethods.IsWindow(browserHwnd)) throw new InvalidOperationException($"Browser HWND 0x{browserHwnd.ToInt64():X} is no longer valid.");
-        if (_hostHwnd == IntPtr.Zero || !NativeMethods.IsWindow(_hostHwnd)) throw new InvalidOperationException("Browser host HWND has not been created or is no longer valid.");
+        if (_hostHwnd == IntPtr.Zero || !NativeMethods.IsWindow(_hostHwnd)) throw new InvalidOperationException("Browser pseudo-dock anchor HWND has not been created or is no longer valid.");
 
         if (HasDockedWindow)
         {
-            RuntimeLog.Info($"Dock requested while another HWND is tracked. Existing=0x{_browserHwnd.ToInt64():X}; New=0x{browserHwnd.ToInt64():X}");
+            RuntimeLog.Info($"Pseudo-dock requested while another HWND is tracked. Existing=0x{_browserHwnd.ToInt64():X}; New=0x{browserHwnd.ToInt64():X}");
             Detach();
         }
         if (!BrowserDockRegistry.TryClaim(browserHwnd, this))
-            throw new InvalidOperationException($"Browser HWND 0x{browserHwnd.ToInt64():X} is already docked by another workspace tile.");
+            throw new InvalidOperationException($"Browser HWND 0x{browserHwnd.ToInt64():X} is already assigned to another workspace tile.");
 
         _browserHwnd = browserHwnd;
+        _lastLeft = _lastTop = int.MinValue;
         _lastWidth = _lastHeight = -1;
+        _wasForeground = false;
         _originalStyle = NativeMethods.GetWindowLongPtr(browserHwnd, NativeMethods.GWL_STYLE);
         _originalExStyle = NativeMethods.GetWindowLongPtr(browserHwnd, NativeMethods.GWL_EXSTYLE);
+        _originalOwnerHwnd = NativeMethods.GetWindowLongPtr(browserHwnd, NativeMethods.GWL_HWNDPARENT);
         _originalPlacement = new NativeMethods.WINDOWPLACEMENT { Length = (uint)Marshal.SizeOf<NativeMethods.WINDOWPLACEMENT>() };
         _hasOriginalPlacement = NativeMethods.GetWindowPlacement(browserHwnd, ref _originalPlacement);
 
-        RuntimeLog.Info($"Dock start. BrowserHWND=0x{browserHwnd.ToInt64():X}; HostHWND=0x{_hostHwnd.ToInt64():X}; Style=0x{_originalStyle.ToInt64():X}; ExStyle=0x{_originalExStyle.ToInt64():X}; PlacementSaved={_hasOriginalPlacement}");
+        RuntimeLog.Info($"Pseudo-dock start. BrowserHWND=0x{browserHwnd.ToInt64():X}; AnchorHWND=0x{_hostHwnd.ToInt64():X}; Style=0x{_originalStyle.ToInt64():X}; ExStyle=0x{_originalExStyle.ToInt64():X}; PlacementSaved={_hasOriginalPlacement}");
         NativeMethods.ShowWindow(browserHwnd, NativeMethods.SW_RESTORE);
 
+        // Keep Firefox a real top-level window. Remove visible top-level chrome so it looks
+        // docked, but explicitly never set WS_CHILD and never call SetParent.
         var style = _originalStyle.ToInt64();
-        style &= ~(NativeMethods.WS_POPUP | NativeMethods.WS_CAPTION | NativeMethods.WS_THICKFRAME |
+        style &= ~(NativeMethods.WS_CHILD | NativeMethods.WS_CAPTION | NativeMethods.WS_THICKFRAME |
                    NativeMethods.WS_MINIMIZEBOX | NativeMethods.WS_MAXIMIZEBOX | NativeMethods.WS_SYSMENU);
-        style |= NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.WS_CLIPCHILDREN | NativeMethods.WS_CLIPSIBLINGS;
+        style |= NativeMethods.WS_POPUP | NativeMethods.WS_VISIBLE | NativeMethods.WS_CLIPCHILDREN | NativeMethods.WS_CLIPSIBLINGS;
         NativeMethods.SetWindowLongPtr(browserHwnd, NativeMethods.GWL_STYLE, new IntPtr(style));
-
-        Marshal.SetLastPInvokeError(0);
-        var previousParent = NativeMethods.SetParent(browserHwnd, _hostHwnd);
-        var setParentError = Marshal.GetLastPInvokeError();
-        if (previousParent == IntPtr.Zero && setParentError != 0)
-        {
-            RestoreWindowStyleOnly(browserHwnd);
-            ClearDockState();
-            throw new Win32Exception(setParentError, "SetParent failed while docking Firefox window.");
-        }
+        if (_workspaceTopLevelHwnd != IntPtr.Zero && NativeMethods.IsWindow(_workspaceTopLevelHwnd))
+            NativeMethods.SetWindowLongPtr(browserHwnd, NativeMethods.GWL_HWNDPARENT, _workspaceTopLevelHwnd);
 
         if (!NativeMethods.SetWindowPos(browserHwnd, IntPtr.Zero, 0, 0, 0, 0,
-                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER |
-                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW))
-            RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed after dock. Win32={Marshal.GetLastWin32Error()}");
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE |
+                NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW))
+            RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed while entering pseudo-dock mode. Win32={Marshal.GetLastWin32Error()}");
 
         ResizeDockedWindow();
-        FirefoxInputCoordinator.ObserveDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.Dock");
-        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; native Firefox input is pass-through; no automatic root focus handoff or persistent input bridge was created.");
+        FirefoxInputCoordinator.ObserveDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.PseudoDock");
+        RuntimeLog.Info($"Pseudo-dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; SetParentUsed=False; Firefox remains a native top-level HWND for keyboard/TSF/IME ownership.");
     }
 
     public void Detach()
     {
         if (!HasDockedWindow) return;
         var hwnd = _browserHwnd;
-        RuntimeLog.Info($"Detach start. BrowserHWND=0x{hwnd.ToInt64():X}");
+        RuntimeLog.Info($"Pseudo-dock detach start. BrowserHWND=0x{hwnd.ToInt64():X}");
         if (!NativeMethods.IsWindow(hwnd))
         {
-            RuntimeLog.Warn($"Detach skipped because BrowserHWND=0x{hwnd.ToInt64():X} no longer exists.");
+            RuntimeLog.Warn($"Pseudo-dock detach skipped because BrowserHWND=0x{hwnd.ToInt64():X} no longer exists.");
             ClearDockState();
             return;
         }
 
         try
         {
-            Marshal.SetLastPInvokeError(0);
-            NativeMethods.SetParent(hwnd, IntPtr.Zero);
-            var parentError = Marshal.GetLastPInvokeError();
-            if (parentError != 0) RuntimeLog.Warn($"SetParent(NULL) returned Win32={parentError} during detach.");
-
             RestoreWindowStyleOnly(hwnd);
+            NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_HWNDPARENT, _originalOwnerHwnd);
             if (!NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER |
-                    NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW))
-                RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed during detach. Win32={Marshal.GetLastWin32Error()}");
+                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE |
+                    NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW))
+                RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed during pseudo-dock detach. Win32={Marshal.GetLastWin32Error()}");
 
             if (_hasOriginalPlacement)
             {
                 var placement = _originalPlacement;
                 if (!NativeMethods.SetWindowPlacement(hwnd, ref placement))
-                    RuntimeLog.Warn($"SetWindowPlacement failed during detach. Win32={Marshal.GetLastWin32Error()}");
+                    RuntimeLog.Warn($"SetWindowPlacement failed during pseudo-dock detach. Win32={Marshal.GetLastWin32Error()}");
             }
             else NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOWNORMAL);
 
-            RuntimeLog.Info($"Detach completed. BrowserHWND=0x{hwnd.ToInt64():X}");
+            RuntimeLog.Info($"Pseudo-dock detach completed. BrowserHWND=0x{hwnd.ToInt64():X}");
         }
-        catch (Exception ex) { RuntimeLog.Error($"Detach failed for BrowserHWND=0x{hwnd.ToInt64():X}.", ex); }
+        catch (Exception ex) { RuntimeLog.Error($"Pseudo-dock detach failed for BrowserHWND=0x{hwnd.ToInt64():X}.", ex); }
         finally { ClearDockState(); }
     }
 
@@ -192,79 +174,87 @@ public sealed class BrowserDockHost : HwndHost
         if (!HasDockedWindow) return false;
         if (NativeMethods.IsWindow(_browserHwnd)) return true;
         var lostHwnd = _browserHwnd;
-        RuntimeLog.Warn($"Docked browser window disappeared. BrowserHWND=0x{lostHwnd.ToInt64():X}");
+        RuntimeLog.Warn($"Pseudo-docked browser window disappeared. BrowserHWND=0x{lostHwnd.ToInt64():X}");
         ClearDockState();
         DockedWindowLost?.Invoke(this, EventArgs.Empty);
         return false;
     }
 
+    /// <summary>
+    /// Historical API name retained for callers. In rc19 this synchronizes a native top-level
+    /// Firefox window to the screen rectangle occupied by the WPF anchor; it does not resize a child HWND.
+    /// </summary>
     public void ResizeDockedWindow()
     {
         if (!CheckDockedWindowHealth() || _hostHwnd == IntPtr.Zero || !NativeMethods.IsWindow(_hostHwnd)) return;
-        if (!NativeMethods.GetClientRect(_hostHwnd, out var rect))
+
+        if (!_pseudoDockVisible || !NativeMethods.IsWindowVisible(_hostHwnd))
         {
-            RuntimeLog.Warn($"GetClientRect failed for host HWND=0x{_hostHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}");
+            NativeMethods.ShowWindow(_browserHwnd, NativeMethods.SW_HIDE);
             return;
         }
 
+        if (!NativeMethods.GetWindowRect(_hostHwnd, out var rect))
+        {
+            RuntimeLog.Warn($"GetWindowRect failed for pseudo-dock anchor HWND=0x{_hostHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}");
+            return;
+        }
+
+        var left = rect.Left;
+        var top = rect.Top;
         var width = Math.Max(1, rect.Width);
         var height = Math.Max(1, rect.Height);
-        if (width == _lastWidth && height == _lastHeight) return;
+        if (left == _lastLeft && top == _lastTop && width == _lastWidth && height == _lastHeight) return;
 
-        SetBrowserRedraw(false);
-        try
+        if (!NativeMethods.SetWindowPos(_browserHwnd, IntPtr.Zero, left, top, width, height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
         {
-            if (!NativeMethods.SetWindowPos(_browserHwnd, IntPtr.Zero, 0, 0, width, height,
-                    NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
-            {
-                RuntimeLog.Warn($"SetWindowPos resize failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}; Win32={Marshal.GetLastWin32Error()}");
-                return;
-            }
-            _lastWidth = width;
-            _lastHeight = height;
+            RuntimeLog.Warn($"SetWindowPos pseudo-dock sync failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Rect={left},{top},{width}x{height}; Win32={Marshal.GetLastWin32Error()}");
+            return;
         }
-        finally { SetBrowserRedraw(true); }
 
-        RequestBrowserRedraw(false, false);
-        RuntimeLog.Debug($"Browser resize committed. HWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}");
+        _lastLeft = left;
+        _lastTop = top;
+        _lastWidth = width;
+        _lastHeight = height;
+        RuntimeLog.Debug($"Pseudo-dock geometry synchronized. BrowserHWND=0x{_browserHwnd.ToInt64():X}; ScreenRect={left},{top},{width}x{height}; SetParentUsed=False");
     }
 
     public void FinalizeResizeRepaint()
     {
         if (!CheckDockedWindowHealth()) return;
+        _lastLeft = _lastTop = int.MinValue;
         _lastWidth = _lastHeight = -1;
         ResizeDockedWindow();
-        RequestBrowserRedraw(true, true);
-        RuntimeLog.Debug($"Browser final repaint completed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; HostHWND=0x{_hostHwnd.ToInt64():X}");
+        RequestBrowserRedraw(true);
+        RuntimeLog.Debug($"Pseudo-dock final repaint completed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; AnchorHWND=0x{_hostHwnd.ToInt64():X}");
     }
 
-    private void SetBrowserRedraw(bool enabled)
+    public void SetPseudoDockVisible(bool visible)
+    {
+        _pseudoDockVisible = visible;
+        if (!CheckDockedWindowHealth()) return;
+        if (!visible)
+        {
+            NativeMethods.ShowWindow(_browserHwnd, NativeMethods.SW_HIDE);
+            RuntimeLog.Debug($"Pseudo-dock hidden with pane/window visibility. BrowserHWND=0x{_browserHwnd.ToInt64():X}");
+            return;
+        }
+
+        _lastLeft = _lastTop = int.MinValue;
+        _lastWidth = _lastHeight = -1;
+        ResizeDockedWindow();
+    }
+
+    private void RequestBrowserRedraw(bool immediate)
     {
         if (_browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(_browserHwnd)) return;
-        NativeMethods.SendMessageTimeout(_browserHwnd, NativeMethods.WM_SETREDRAW,
-            enabled ? new UIntPtr(1) : UIntPtr.Zero, IntPtr.Zero, NativeMethods.SMTO_ABORTIFHUNG, 120, out _);
-    }
-
-    private void RequestBrowserRedraw(bool immediate, bool includeParent)
-    {
         var flags = NativeMethods.RDW_INVALIDATE | NativeMethods.RDW_ALLCHILDREN | NativeMethods.RDW_FRAME;
         if (immediate) flags |= NativeMethods.RDW_ERASE | NativeMethods.RDW_ERASENOW | NativeMethods.RDW_UPDATENOW;
-        RedrawNativeWindow(_browserHwnd, flags, immediate);
-        RedrawNativeWindow(_hostHwnd, flags, immediate);
-        if (includeParent && _hostHwnd != IntPtr.Zero && NativeMethods.IsWindow(_hostHwnd))
-        {
-            var parent = NativeMethods.GetParent(_hostHwnd);
-            if (parent != IntPtr.Zero && NativeMethods.IsWindow(parent)) RedrawNativeWindow(parent, flags, immediate);
-        }
+        NativeMethods.InvalidateRect(_browserHwnd, IntPtr.Zero, true);
+        NativeMethods.RedrawWindow(_browserHwnd, IntPtr.Zero, IntPtr.Zero, flags);
+        if (immediate) NativeMethods.UpdateWindow(_browserHwnd);
         InvalidateVisual();
-    }
-
-    private static void RedrawNativeWindow(IntPtr hwnd, uint flags, bool immediate)
-    {
-        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd)) return;
-        NativeMethods.InvalidateRect(hwnd, IntPtr.Zero, true);
-        NativeMethods.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero, flags);
-        if (immediate) NativeMethods.UpdateWindow(hwnd);
     }
 
     public void FocusBrowser() => FocusBrowser("BrowserDockHost.FocusBrowser");
@@ -272,7 +262,7 @@ public sealed class BrowserDockHost : HwndHost
     public void FocusBrowser(string reason)
     {
         if (!CheckDockedWindowHealth()) return;
-        FirefoxInputCoordinator.FocusRoot(
+        FirefoxInputCoordinator.ActivateTopLevel(
             _browserHwnd,
             _workspaceInputThreadId,
             string.IsNullOrWhiteSpace(reason) ? "BrowserDockHost.FocusBrowser" : reason);
@@ -289,6 +279,13 @@ public sealed class BrowserDockHost : HwndHost
     public void ProbeInputState(string reason)
     {
         if (!CheckDockedWindowHealth()) return;
+        var isForeground = NativeMethods.GetForegroundWindow() == _browserHwnd;
+        if (isForeground && !_wasForeground)
+        {
+            FirefoxInputCoordinator.MarkActiveRoot(_browserHwnd, $"{reason}.ForegroundObserved");
+            NativeBrowserActivated?.Invoke(this, EventArgs.Empty);
+        }
+        _wasForeground = isForeground;
         FirefoxInputCoordinator.ProbeState(_browserHwnd, _workspaceInputThreadId, reason);
     }
 
@@ -298,8 +295,8 @@ public sealed class BrowserDockHost : HwndHost
         var target = (url ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(target)) return false;
 
-        FocusBrowser();
-        await Task.Delay(60);
+        FocusBrowser("BrowserDockHost.NavigateByKeyboardAsync");
+        await Task.Delay(100);
         SendVirtualKeyChord(NativeMethods.VK_CONTROL, NativeMethods.VK_L);
         await Task.Delay(80);
         SendUnicodeText(target);
@@ -365,9 +362,12 @@ public sealed class BrowserDockHost : HwndHost
         FirefoxInputCoordinator.Forget(previousBrowserHwnd);
         BrowserDockRegistry.Release(previousBrowserHwnd, this);
         _browserHwnd = IntPtr.Zero;
+        _originalOwnerHwnd = IntPtr.Zero;
         _originalStyle = IntPtr.Zero;
         _originalExStyle = IntPtr.Zero;
         _hasOriginalPlacement = false;
+        _lastLeft = _lastTop = int.MinValue;
         _lastWidth = _lastHeight = -1;
+        _wasForeground = false;
     }
 }

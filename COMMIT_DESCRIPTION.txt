@@ -1,24 +1,23 @@
-fix: return normal Firefox interaction to native input pass-through in v0.0.6rc18
+refactor: prototype native top-level Firefox pseudo-docking in v0.0.6rc19
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* use rc17 real-machine evidence that B7 could be the observed active/root-focused Firefox HWND while typed data still routed to B8
-* treat Win32 Firefox root-HWND focus as insufficient to represent Firefox internal text-edit and IME focus across multiple reparented Firefox windows sharing one GUI/input thread
-* remove the rc17 persistent reference-counted AttachThreadInput bridge and all normal dock-lifetime thread-bridge ownership
-* make ordinary Browser mouse activation pass-through: observe WM_PARENTNOTIFY to record the active B# pane and promote WPF z-order, but do not call SetFocus or AttachThreadInput
-* keep WM_MOUSEACTIVATE diagnostic-only and leave the original Firefox mouse activation/focus path untouched
-* stop automatically forcing Firefox root focus immediately after SetParent during dock
-* retain FirefoxInputCoordinator only as active-root observer, input-state diagnostic source, and explicit recovery authority
-* keep temporary AttachThreadInput + root SetFocus + immediate detach in finally only for explicit recovery paths such as the Focus toolbar action, TabIntoCore, and Workspace-driven keyboard navigation
-* remove automatic active-Browser focus recovery from Show IDs, Auto Fit/Free Layout, Add Browser, viewport resize, and maximize/restore transitions
-* keep deferred Firefox refit/final repaint after maximize/restore without changing keyboard focus
-* make top Workspace toolbar buttons non-focusable and non-tab-stop so mouse commands do not intentionally steal keyboard focus from Firefox
-* make Browser pane chrome buttons and the move thumb non-focusable/non-tab-stop while retaining the Focus button as an explicit mouse-invoked recovery action
-* change Workspace/Firefox HKL mismatch handling back to diagnostic-only observation and stop posting WM_INPUTLANGCHANGEREQUEST into Firefox
-* continue to avoid ActivateKeyboardLayout, synthetic WM_IME_COMPOSITION, and Firefox compositor/content child-HWND enumeration or focus guessing
-* retain rc14 HKL, GetGUIThreadInfo, input-language, and IME message diagnostics so pass-through behavior can be correlated with native foreground/active/focus evidence
-* add regression checks for zero persistent input bridges, no SetFocus on normal native Browser activation, temporary recovery-only AttachThreadInput pairing, non-focusable WPF chrome, diagnostic-only HKL handling, and no automatic layout focus recovery
-* document a real-machine B1-B8 PASS gate for English/number + Zhuyin, B7-to-B8 routing isolation, Show IDs, layout transitions, maximize/restore, and close/reopen without pressing Focus
-* stamp application/build/run/test metadata as v0.0.6rc18 / 0.0.6-rc18 / FileVersion 0.0.6.18 from Directory.Build.props
+* use rc18 real-machine evidence that English/number input can work with native pass-through while Zhuyin/Chinese IME composition still fails under cross-process SetParent embedding
+* stop extending the reparented Firefox focus/IME workaround chain and change the Browser hosting boundary instead
+* replace Firefox SetParent embedding with a native top-level pseudo-dock model in which BrowserDockHost is only a WPF-owned geometry anchor
+* explicitly keep Firefox out of WS_CHILD mode and preserve it as a native top-level HWND while removing visible caption/frame chrome during pseudo-docking
+* assign the Workspace top-level HWND only as the Firefox window owner through GWL_HWNDPARENT, not as its parent, and restore the original owner on detach
+* mirror each Browser pane to screen coordinates using the anchor GetWindowRect plus SetWindowPos with SWP_NOACTIVATE and no input-queue manipulation
+* synchronize pseudo-docked Firefox geometry after pane/layout resize, Workspace viewport resize, scrolling, MainWindow movement, Window activation, and restore transitions
+* hide pseudo-docked Firefox windows when their pane or the Workspace is hidden/minimized and resynchronize them when visible again
+* remove AttachThreadInput and root SetFocus from the rc19 Firefox architecture entirely
+* change the Focus toolbar action, TabIntoCore, and Workspace-driven navigation recovery to native top-level activation through SetForegroundWindow
+* infer active Browser ownership from the native foreground Firefox top-level during health diagnostics instead of intercepting child WM_PARENTNOTIFY messages
+* retain read-only HKL, GetGUIThreadInfo, input-language, and IME diagnostics while keeping input-language synchronization, ActivateKeyboardLayout, synthetic IME composition, and Firefox child-HWND focus guessing disabled
+* retain non-focusable Workspace and Browser chrome introduced in rc18
+* document rc19 as a prototype with explicit validation requirements for Free Layout clipping/scrolling, overlapping panes, multi-monitor/mixed-DPI movement, minimize/restore, Alt-Tab, and isolation from external Firefox windows
+* add regression checks for no Firefox SetParent call, top-level WS_POPUP/owner semantics, screen-rectangle synchronization, no AttachThreadInput/SetFocus, SetForegroundWindow recovery, diagnostic-only IME handling, and the staged manual gate
+* stage the real-machine PASS gate from B1 English/number + Zhuyin to B1-B4 and only then B1-B8 before treating the pseudo-dock architecture as viable
+* stamp application/build/run/test metadata as v0.0.6rc19 / 0.0.6-rc19 / FileVersion 0.0.6.19 from Directory.Build.props
 * retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, 64x64 endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
 * preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc18 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc18
+* update README, CHANGELOG, rc19 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc19

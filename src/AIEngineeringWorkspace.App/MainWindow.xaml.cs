@@ -42,7 +42,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Firefox Native Input Pass-Through";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Native Top-Level Firefox Pseudo-Dock";
         SourceInitialized += (_, _) => InstallInputMessageDiagnostics();
         _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _healthTimer.Tick += (_, _) => { foreach (var tile in _browserPanes.ToArray()) tile.CheckHealth(); };
@@ -66,7 +66,23 @@ public partial class MainWindow : Window
                     ApplyAutoFitLayout();
                 }, DispatcherPriority.Background);
             }
+            SchedulePseudoDockGeometrySync("WorkspaceViewportSizeChanged");
         };
+        WorkspaceScrollViewer.ScrollChanged += (_, _) => SchedulePseudoDockGeometrySync("WorkspaceScrollChanged");
+        LocationChanged += (_, _) => SchedulePseudoDockGeometrySync("MainWindowLocationChanged");
+        StateChanged += (_, _) =>
+        {
+            if (WindowState == System.Windows.WindowState.Minimized)
+            {
+                foreach (var browser in _browserPanes) browser.SetPseudoDockVisible(false);
+                RuntimeLog.Info("MainWindow minimized; pseudo-docked Firefox top-level windows hidden.");
+            }
+            else
+            {
+                SchedulePseudoDockGeometrySync("MainWindowStateChanged");
+            }
+        };
+        Activated += (_, _) => SchedulePseudoDockGeometrySync("MainWindowActivated");
         Closing += MainWindow_Closing;
     }
 
@@ -104,6 +120,21 @@ public partial class MainWindow : Window
 
         _inputMessageHook = null;
         _mainHwndSource = null;
+    }
+
+    private void SchedulePseudoDockGeometrySync(string reason)
+    {
+        if (_closing || WindowState == System.Windows.WindowState.Minimized) return;
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (_closing || WindowState == System.Windows.WindowState.Minimized) return;
+            foreach (var browser in _browserPanes.Where(x => x.HasDockedWindow))
+            {
+                browser.SetPseudoDockVisible(browser.IsVisible);
+                if (browser.IsVisible) browser.FitBrowserToPane();
+            }
+            RuntimeLog.Debug($"Pseudo-dock geometry synchronization completed. Reason='{reason}'; BrowserCount={_browserPanes.Count(x => x.HasDockedWindow)}");
+        }, DispatcherPriority.Render);
     }
 
     private void CreateDefaultWorkspaceToFitViewport()
@@ -178,13 +209,14 @@ public partial class MainWindow : Window
     private void BrowserPane_MaximizeRequested(BrowserTile tile)=>ToggleBrowserPaneMaximize(tile);
 
     private void BeginPaneMove(FrameworkElement pane){if(_autoFitLayout)SetLayoutMode(false,"Manual pane move");_moveOrigins[pane]=GetPanePosition(pane);BringToFront(pane);}
-    private void MovePane(FrameworkElement pane,double dx,double dy){var p=GetPanePosition(pane);SetPanePosition(pane,new Point(Math.Max(0,p.X+dx),Math.Max(0,p.Y+dy)));EnsureCanvasBounds(pane);}
+    private void MovePane(FrameworkElement pane,double dx,double dy){var p=GetPanePosition(pane);SetPanePosition(pane,new Point(Math.Max(0,p.X+dx),Math.Max(0,p.Y+dy)));EnsureCanvasBounds(pane);if(pane is BrowserTile browser)browser.FitBrowserToPane();}
     private void CompletePaneMove(FrameworkElement pane)
     {
         var alias=GetAlias(pane);var origin=_moveOrigins.TryGetValue(pane,out var saved)?saved:GetPanePosition(pane);_moveOrigins.Remove(pane);var rect=GetPaneRect(pane);
         var target=GetAllPanes().Where(x=>!ReferenceEquals(x,pane)).Select(x=>new{Pane=x,Area=IntersectionArea(rect,GetPaneRect(x))}).Where(x=>x.Area>0).OrderByDescending(x=>x.Area).FirstOrDefault();
         if(target is not null){var targetPosition=GetPanePosition(target.Pane);SetPanePosition(pane,targetPosition);SetPanePosition(target.Pane,origin);EnsureCanvasBounds(pane);EnsureCanvasBounds(target.Pane);SetWorkspaceStatus($"Swapped {alias} with {GetAlias(target.Pane)}. Pane identity did not change.");}else SetWorkspaceStatus($"Moved {alias} to {FormatPoint(GetPanePosition(pane))}.");
         MarkWorkspaceDirty($"Moved {alias}");
+        SchedulePseudoDockGeometrySync($"{alias}.MoveCompleted");
     }
 
     private void ResizePane(FrameworkElement pane,PaneResizeDirection direction,double dx,double dy)
@@ -308,6 +340,7 @@ public partial class MainWindow : Window
         foreach(var p in _filePanes)p.SetEndpointIdVisibility(_showEndpointIds);
         ShowIdsButton.ToolTip=_showEndpointIds?"Hide 64×64 routing endpoint badges (B1-B8 / F1-F4)":"Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";
         MarkWorkspaceDirty("Endpoint ID display changed");
+        SchedulePseudoDockGeometrySync(_showEndpointIds?"ShowIdsEnabled":"ShowIdsDisabled");
     }
     private void DetachAllButton_Click(object sender,RoutedEventArgs e){var count=_browserPanes.Count(x=>x.HasDockedWindow);foreach(var tile in _browserPanes.ToArray())if(tile.HasDockedWindow)tile.Detach();SetWorkspaceStatus(count==0?"Detach All: no Firefox windows were docked.":$"Detach All completed. Restored {count} Firefox window(s).");}
     private void UpdatePaneCounts(){var ba=string.Join(",",_browserPanes.OrderBy(p=>p.Identity.DisplayIndex).Select(p=>p.Identity.Alias));var fa=string.Join(",",_filePanes.OrderBy(p=>p.Identity.DisplayIndex).Select(p=>p.Identity.Alias));PaneCountTextBlock.Text=$"Standard user / API-free / {(_autoFitLayout?"Auto Fit":"Free Layout")} / {_browserPanes.Count} browser [{ba}] + {_filePanes.Count} file [{fa}]";}

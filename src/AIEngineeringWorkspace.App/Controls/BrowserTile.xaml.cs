@@ -37,6 +37,7 @@ public partial class BrowserTile : UserControl
     {
         InitializeComponent();
         BrowserHost.NativeBrowserActivated += (_, _) => NativeBrowserActivated?.Invoke(this);
+        IsVisibleChanged += (_, _) => BrowserHost.SetPseudoDockVisible(IsVisible);
         BrowserHost.DockedWindowLost += (_, _) =>
         {
             var lostHwnd = _dockedWindow?.Hwnd ?? IntPtr.Zero;
@@ -75,6 +76,7 @@ public partial class BrowserTile : UserControl
     }
 
     internal void FitBrowserToPane() => BrowserHost.ResizeDockedWindow();
+    internal void SetPseudoDockVisible(bool visible) => BrowserHost.SetPseudoDockVisible(visible);
     internal void FinalizeBrowserRepaint() => BrowserHost.FinalizeResizeRepaint();
     internal void MarkBrowserActive(string reason) => BrowserHost.MarkActive(reason);
 
@@ -123,7 +125,7 @@ public partial class BrowserTile : UserControl
         BrowserHost.Detach();
         _dockedWindow = null;
         UpdateBrowserControls();
-        SetStatus(workspaceOwned ? "Firefox detached and restored. This Workspace-launched window will close when Workspace exits." : "Firefox detached and original window style/placement restored.");
+        SetStatus(workspaceOwned ? "Firefox pseudo-dock detached and restored. This Workspace-launched window will close when Workspace exits." : "Firefox pseudo-dock detached and original window style/placement restored.");
     }
 
     private async void LaunchButton_Click(object sender, RoutedEventArgs e) => await LaunchAndDockAsync();
@@ -172,7 +174,7 @@ public partial class BrowserTile : UserControl
         {
             Keyboard.ClearFocus();
             BrowserHost.FocusBrowser();
-            SetStatus(BrowserHost.IsDocked ? "Firefox root keyboard focus recovery requested." : "Nothing is docked.");
+            SetStatus(BrowserHost.IsDocked ? "Firefox top-level activation recovery requested." : "Nothing is pseudo-docked.");
         }
         catch (Exception ex) { RuntimeLog.Error($"[{Identity.Alias}] Focus request failed.", ex); SetStatus($"Focus failed: {ex.Message}"); }
     }
@@ -206,7 +208,8 @@ public partial class BrowserTile : UserControl
         BrowserHost.Dock(window.Hwnd);
         _dockedWindow = window;
         UpdateBrowserControls();
-        SetStatus($"Docked PID={window.ProcessId}, HWND={window.HwndHex}, Title='{window.Title}'");
+        BrowserHost.SetPseudoDockVisible(IsVisible);
+        SetStatus($"Pseudo-docked PID={window.ProcessId}, HWND={window.HwndHex}, Title='{window.Title}'");
     }
 
     private void SetUiBusy(bool busy) { LaunchButton.IsEnabled = !busy; DockExistingButton.IsEnabled = !busy; ClosePaneButton.IsEnabled = !busy; MoveThumb.IsEnabled = !busy; }

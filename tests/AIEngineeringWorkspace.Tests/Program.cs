@@ -7,19 +7,19 @@ Run("AutoFit_12Panes_NoOverlap", TestAutoFit12PanesNoOverlap);
 Run("AutoFit_SinglePane_FillsViewport", TestSinglePaneFill);
 Run("GitPorcelain_Rename_UsesDestinationPath", TestRenameUsesDestination);
 Run("GitBadge_Xaml_CollapsesEmptyGlyph", TestGitBadgeCollapsed);
-Run("Version_SingleSource_IsRc18", TestVersionSource);
+Run("Version_SingleSource_IsRc19", TestVersionSource);
 Run("WorkspaceProject_RoundTrip_PreservesLayoutAndFilePath", TestWorkspaceProjectRoundTrip);
 Run("EndpointBadge_ShowIds_Uses64x64Header", TestEndpointBadgeSize);
 Run("Version_DisplaySuppressesSourceRevision", TestVersionDisplaySuppressesSourceRevision);
 Run("NewWorkspace_RepeatedResetHasVisibleFeedback", TestNewWorkspaceFeedback);
 Run("NewWorkspace_AlwaysConfirmsBeforeReset", TestNewWorkspaceConfirmation);
-Run("BrowserInput_NormalPath_IsNativePassThrough", TestNativePassThrough);
-Run("BrowserInput_ExplicitRecovery_IsTemporaryOnly", TestExplicitRecoveryOnly);
+Run("BrowserInput_NormalPath_IsTopLevelPseudoDock", TestTopLevelPseudoDock);
+Run("BrowserInput_ExplicitRecovery_UsesTopLevelActivation", TestTopLevelActivationRecovery);
 Run("BrowserInput_NoChildHwndFocusGuessing", TestNoChildHwndFocusGuessing);
 Run("BrowserInput_WpfChrome_IsNonFocusable", TestNonFocusableChrome);
 Run("BrowserInput_LayoutTransitions_DoNotForceFocus", TestLayoutDoesNotForceFocus);
 Run("BrowserInput_IMEInstrumentation_IsDiagnosticOnly", TestImeDiagnosticOnly);
-Run("BrowserInput_Rc18ManualPassGate_Documented", TestManualPassGateDocumented);
+Run("BrowserInput_Rc19ManualPassGate_Documented", TestRc19ManualPassGateDocumented);
 
 if (failures.Count == 0)
 {
@@ -47,13 +47,13 @@ void TestAutoFit12PanesNoOverlap()
 void TestSinglePaneFill(){var plan=AutoFitLayoutPlanner.Plan(1280,720,new[]{new AutoFitPaneSpec(360,260)},8,4);var cell=plan.Cells.Single();Assert(Math.Abs(cell.X)<.001&&Math.Abs(cell.Y)<.001,"single pane must start at origin");Assert(cell.Width>=1280&&cell.Height>=720,"single pane must fill viewport");}
 void TestRenameUsesDestination(){var root=Path.GetFullPath(Path.Combine(Path.GetTempPath(),"aiew-tests-repo"));var parsed=GitPorcelainParser.Parse(root,"R  new.txt\0old.txt\0");var newPath=Path.GetFullPath(Path.Combine(root,"new.txt")).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);var oldPath=Path.GetFullPath(Path.Combine(root,"old.txt")).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);Assert(parsed.ContainsKey(newPath),"rename destination/current path missing");Assert(!parsed.ContainsKey(oldPath),"rename source/old path must not receive visible status");}
 void TestGitBadgeCollapsed(){var root=FindRepositoryRoot();var xaml=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","FilePane.xaml"));Assert(xaml.Contains("DataTrigger Binding=\"{Binding GitGlyph}\" Value=\"\"",StringComparison.Ordinal),"empty GitGlyph collapse trigger missing");Assert(xaml.Contains("<Setter Property=\"Visibility\" Value=\"Collapsed\"",StringComparison.Ordinal),"collapsed visibility setter missing");}
-void TestVersionSource(){var doc=XDocument.Load(Path.Combine(FindRepositoryRoot(),"Directory.Build.props"));var values=doc.Descendants().ToDictionary(x=>x.Name.LocalName,x=>x.Value,StringComparer.OrdinalIgnoreCase);Assert(values["WorkspaceVersionLabel"]=="v0.0.6rc18","WorkspaceVersionLabel drift");Assert(values["Version"]=="0.0.6-rc18","package Version drift");Assert(values["FileVersion"]=="0.0.6.18","FileVersion drift");}
+void TestVersionSource(){var doc=XDocument.Load(Path.Combine(FindRepositoryRoot(),"Directory.Build.props"));var values=doc.Descendants().ToDictionary(x=>x.Name.LocalName,x=>x.Value,StringComparer.OrdinalIgnoreCase);Assert(values["WorkspaceVersionLabel"]=="v0.0.6rc19","WorkspaceVersionLabel drift");Assert(values["Version"]=="0.0.6-rc19","package Version drift");Assert(values["FileVersion"]=="0.0.6.19","FileVersion drift");}
 void TestWorkspaceProjectRoundTrip()
 {
     var path=Path.Combine(Path.GetTempPath(),$"aiew-{Guid.NewGuid():N}.aew");
     try
     {
-        var paneId=Guid.NewGuid();var project=new WorkspaceProjectDocument{ApplicationVersion="v0.0.6rc18",LayoutMode=WorkspaceLayoutMode.FreeLayout,ShowEndpointIds=true,Panes=new List<WorkspacePaneState>{new(){Kind=PaneKind.File,PaneId=paneId,DisplayIndex=2,X=123,Y=45,Width=456,Height=321,FilePath=@"C:\Example"},new(){Kind=PaneKind.Browser,PaneId=Guid.NewGuid(),DisplayIndex=1,X=600,Y=45,Width=720,Height=540}}};
+        var paneId=Guid.NewGuid();var project=new WorkspaceProjectDocument{ApplicationVersion="v0.0.6rc19",LayoutMode=WorkspaceLayoutMode.FreeLayout,ShowEndpointIds=true,Panes=new List<WorkspacePaneState>{new(){Kind=PaneKind.File,PaneId=paneId,DisplayIndex=2,X=123,Y=45,Width=456,Height=321,FilePath=@"C:\Example"},new(){Kind=PaneKind.Browser,PaneId=Guid.NewGuid(),DisplayIndex=1,X=600,Y=45,Width=720,Height=540}}};
         WorkspaceProjectService.Save(path,project);var loaded=WorkspaceProjectService.Load(path);Assert(loaded.LayoutMode==WorkspaceLayoutMode.FreeLayout,"layout mode not preserved");Assert(loaded.ShowEndpointIds,"Show IDs state not preserved");var file=loaded.Panes.Single(p=>p.Kind==PaneKind.File);Assert(file.PaneId==paneId&&file.DisplayIndex==2,"File endpoint identity not preserved");Assert(file.X==123&&file.Y==45&&file.Width==456&&file.Height==321,"pane geometry not preserved");Assert(file.FilePath==@"C:\Example","File path not preserved");Assert(typeof(WorkspacePaneState).GetProperty("BrowserUrl") is null,"Browser URL must not be persisted by Workspace project schema");
     }
     finally{if(File.Exists(path))File.Delete(path);if(File.Exists(path+".tmp"))File.Delete(path+".tmp");}
@@ -63,35 +63,37 @@ void TestVersionDisplaySuppressesSourceRevision(){var root=FindRepositoryRoot();
 void TestNewWorkspaceFeedback(){var main=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));Assert(main.Contains("ResetWorkspaceToDefaults()",StringComparison.Ordinal),"New Workspace reset helper missing");Assert(main.Contains("_newWorkspaceResetCount++",StringComparison.Ordinal),"repeated New Workspace reset sequence feedback missing");Assert(main.Contains("New Workspace project created at",StringComparison.Ordinal),"visible New Workspace timestamp feedback missing");}
 void TestNewWorkspaceConfirmation(){var main=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));Assert(main.Contains("ConfirmCreateNewWorkspace()",StringComparison.Ordinal),"New Workspace explicit confirmation helper missing");Assert(main.Contains("Create a new Workspace project?",StringComparison.Ordinal),"clean Workspace confirmation prompt missing");Assert(main.Contains("Save changes before creating a new Workspace?",StringComparison.Ordinal),"dirty Workspace Save/Discard/Cancel prompt missing");}
 
-void TestNativePassThrough()
+void TestTopLevelPseudoDock()
 {
     var root=FindRepositoryRoot();
     var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
     var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
-    Assert(host.Contains("native Firefox input is pass-through",StringComparison.Ordinal),"dock pass-through declaration missing");
-    Assert(host.Contains("FirefoxInputCoordinator.MarkActiveRoot(_browserHwnd, reason)",StringComparison.Ordinal),"native Browser click does not record active root");
-    Assert(!host.Contains("FirefoxInputCoordinator.RegisterDock",StringComparison.Ordinal),"normal dock still registers persistent bridge ownership");
-    Assert(!host.Contains("FocusBrowser(reason);",StringComparison.Ordinal),"normal native Browser mouse activation still forces root focus");
-    Assert(!coordinator.Contains("Dictionary<BridgeKey, ThreadBridgeState>",StringComparison.Ordinal),"persistent per-thread bridge table returned");
-    Assert(!coordinator.Contains("BridgeRefCount",StringComparison.Ordinal),"persistent bridge refcount returned");
-    Assert(coordinator.Contains("NativeInputMode=PassThrough",StringComparison.Ordinal),"pass-through diagnostics missing");
+    Assert(host.Contains("pseudo-dock",StringComparison.OrdinalIgnoreCase),"pseudo-dock implementation declaration missing");
+    Assert(host.Contains("GetWindowRect(_hostHwnd",StringComparison.Ordinal),"pseudo-dock screen-rectangle synchronization missing");
+    Assert(host.Contains("SetWindowPos(_browserHwnd, IntPtr.Zero",StringComparison.Ordinal),"native top-level geometry positioning missing");
+    Assert(host.Contains("GWL_HWNDPARENT",StringComparison.Ordinal),"pseudo-docked Firefox owner binding missing");
+    Assert(!host.Contains("NativeMethods.SetParent(",StringComparison.Ordinal),"rc19 must not reparent Firefox with SetParent");
+    Assert(host.Contains("style &= ~(NativeMethods.WS_CHILD",StringComparison.Ordinal),"rc19 does not explicitly keep Firefox out of WS_CHILD mode");
+    Assert(host.Contains("style |= NativeMethods.WS_POPUP",StringComparison.Ordinal),"rc19 top-level popup style missing");
+    Assert(coordinator.Contains("NativeInputMode=TopLevelPseudoDock",StringComparison.Ordinal),"top-level pseudo-dock diagnostics missing");
+    Assert(coordinator.Contains("SetParentUsed=False",StringComparison.Ordinal),"SetParent-disabled diagnostics missing");
 }
 
-void TestExplicitRecoveryOnly()
+void TestTopLevelActivationRecovery()
 {
     var root=FindRepositoryRoot();
     var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
     var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
-    Assert(coordinator.Contains("TemporaryInputBridgeAttached",StringComparison.Ordinal)&&coordinator.Contains("TemporaryInputBridgeDetached",StringComparison.Ordinal),"temporary recovery bridge diagnostics missing");
-    Assert(coordinator.Contains("AttachThreadInput(workspaceThreadId, browserThreadId, true)",StringComparison.Ordinal),"temporary recovery attach missing");
-    Assert(coordinator.Contains("AttachThreadInput(workspaceThreadId, browserThreadId, false)",StringComparison.Ordinal),"temporary recovery detach missing");
-    Assert(coordinator.Contains("finally",StringComparison.Ordinal),"recovery bridge is not protected by finally");
-    Assert(coordinator.Contains("SetFocus(browserHwnd)",StringComparison.Ordinal),"explicit root focus recovery missing");
-    Assert(host.Contains("TabIntoCore",StringComparison.Ordinal)&&host.Contains("FocusBrowser()",StringComparison.Ordinal),"TabIntoCore recovery path missing");
+    Assert(coordinator.Contains("SetForegroundWindow(browserHwnd)",StringComparison.Ordinal),"explicit native top-level activation recovery missing");
+    Assert(coordinator.Contains("AttachThreadInputUsed=False",StringComparison.Ordinal),"activation recovery does not declare AttachThreadInput disabled");
+    Assert(coordinator.Contains("SetFocusUsed=False",StringComparison.Ordinal),"activation recovery does not declare SetFocus disabled");
+    Assert(!coordinator.Contains("AttachThreadInput(",StringComparison.Ordinal),"rc19 must not bridge input queues");
+    Assert(!coordinator.Contains("SetFocus(browserHwnd)",StringComparison.Ordinal),"rc19 must not force Firefox root focus");
+    Assert(host.Contains("TabIntoCore",StringComparison.Ordinal)&&host.Contains("FocusBrowser(\"BrowserDockHost.TabIntoCore\")",StringComparison.Ordinal),"TabIntoCore activation recovery path missing");
     Assert(host.Contains("public void FocusBrowser(string reason)",StringComparison.Ordinal),"explicit Focus recovery overload missing");
 }
 
-void TestNoChildHwndFocusGuessing(){var root=FindRepositoryRoot();var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));Assert(!host.Contains("FindPreferredContentHwnd",StringComparison.Ordinal)&&!coordinator.Contains("FindPreferredContentHwnd",StringComparison.Ordinal),"Firefox child-HWND focus guessing returned");Assert(!host.Contains("EnumChildWindows",StringComparison.Ordinal)&&!coordinator.Contains("EnumChildWindows",StringComparison.Ordinal),"normal Browser focus path enumerates Firefox child HWNDs");}
+void TestNoChildHwndFocusGuessing(){var root=FindRepositoryRoot();var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));Assert(!host.Contains("FindPreferredContentHwnd",StringComparison.Ordinal)&&!coordinator.Contains("FindPreferredContentHwnd",StringComparison.Ordinal),"Firefox child-HWND focus guessing returned");Assert(!host.Contains("EnumChildWindows",StringComparison.Ordinal)&&!coordinator.Contains("EnumChildWindows",StringComparison.Ordinal),"Browser path enumerates Firefox child HWNDs");}
 
 void TestNonFocusableChrome()
 {
@@ -110,7 +112,9 @@ void TestLayoutDoesNotForceFocus()
     Assert(!main.Contains("ScheduleActiveBrowserFocusAfterLayout",StringComparison.Ordinal),"automatic active Browser focus recovery still exists");
     Assert(!main.Contains("RecoverBrowserFocusAfterLayout",StringComparison.Ordinal),"layout path still calls Browser focus recovery");
     Assert(main.Contains("ScheduleBrowserRepaintAfterLayout",StringComparison.Ordinal),"deferred repaint-only layout path missing");
-    Assert(main.Contains("keyboard focus was not changed",StringComparison.Ordinal),"repaint-only diagnostic missing");
+    Assert(main.Contains("SchedulePseudoDockGeometrySync",StringComparison.Ordinal),"top-level pseudo-dock geometry sync path missing");
+    Assert(main.Contains("MainWindowLocationChanged",StringComparison.Ordinal),"window-move pseudo-dock geometry sync missing");
+    Assert(main.Contains("WorkspaceScrollChanged",StringComparison.Ordinal),"scroll pseudo-dock geometry sync missing");
 }
 
 void TestImeDiagnosticOnly()
@@ -124,16 +128,16 @@ void TestImeDiagnosticOnly()
     foreach(var token in new[]{"WM_INPUTLANGCHANGEREQUEST","WM_INPUTLANGCHANGE","WM_IME_SETCONTEXT","WM_IME_STARTCOMPOSITION","WM_IME_COMPOSITION","WM_IME_ENDCOMPOSITION"}) Assert(native.Contains(token,StringComparison.Ordinal)&&diag.Contains(token,StringComparison.Ordinal),$"IME/input-language diagnostic message missing: {token}");
     Assert(coordinator.Contains("Firefox input-language state observed without synchronization",StringComparison.Ordinal),"diagnostic-only HKL observation missing");
     Assert(main.Contains("WPF.MainWindow.WM_INPUTLANGCHANGE.DiagnosticOnly",StringComparison.Ordinal),"MainWindow input-language path is not explicitly diagnostic-only");
-    Assert(!coordinator.Contains("PostMessage(",StringComparison.Ordinal),"rc18 must not post input-language changes into Firefox");
-    Assert(!coordinator.Contains("ActivateKeyboardLayout",StringComparison.Ordinal),"rc18 must not force keyboard layouts");
-    Assert(!coordinator.Contains("SendMessage(browserHwnd, NativeMethods.WM_IME_COMPOSITION",StringComparison.Ordinal),"rc18 must not synthesize IME composition");
+    Assert(!coordinator.Contains("PostMessage(",StringComparison.Ordinal),"rc19 must not post input-language changes into Firefox");
+    Assert(!coordinator.Contains("ActivateKeyboardLayout",StringComparison.Ordinal),"rc19 must not force keyboard layouts");
+    Assert(!coordinator.Contains("WM_IME_COMPOSITION,",StringComparison.Ordinal),"rc19 must not synthesize IME composition");
 }
 
-void TestManualPassGateDocumented()
+void TestRc19ManualPassGateDocumented()
 {
-    var note=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"docs","releases","v0.0.6rc18.md"));
-    foreach(var token in new[]{"B1","B8","B7","Zhuyin","Show IDs","Auto Fit","close","reopen","NativeInputMode=PassThrough","PersistentInputBridgeAttached=False"})
-        Assert(note.Contains(token,StringComparison.OrdinalIgnoreCase),$"rc18 manual pass-through gate missing token '{token}'");
+    var note=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"docs","releases","v0.0.6rc19.md"));
+    foreach(var token in new[]{"B1","B4","Zhuyin","English","SetParent","top-level","Show IDs","Auto Fit","move","minimize","restore","close","reopen"})
+        Assert(note.Contains(token,StringComparison.OrdinalIgnoreCase),$"rc19 pseudo-dock manual gate missing token '{token}'");
 }
 
 string FindRepositoryRoot(){var current=new DirectoryInfo(AppContext.BaseDirectory);while(current is not null){if(File.Exists(Path.Combine(current.FullName,"Directory.Build.props")))return current.FullName;current=current.Parent;}throw new InvalidOperationException("repository root not found");}

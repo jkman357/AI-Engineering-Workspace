@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.0.6rc19
+
+- replace `SetParent` Firefox embedding with a native top-level pseudo-dock prototype after rc18 real-machine testing showed English/number input PASS but Zhuyin/IME composition FAIL;
+- keep `BrowserDockHost` as a WPF/native geometry anchor only and never make Firefox a `WS_CHILD`;
+- strip visible Firefox top-level caption/frame chrome while pseudo-docked, assign the Workspace HWND only as window owner, and restore original owner/style/placement on detach;
+- mirror each Browser pane to screen coordinates with `GetWindowRect` + `SetWindowPos(... SWP_NOACTIVATE ...)`;
+- synchronize pseudo-dock geometry across pane/layout resize, Workspace move, scrolling, viewport changes, activation, maximize/restore, and Window restore;
+- hide pseudo-docked Firefox windows while panes or the Workspace are hidden/minimized and resynchronize them when visible again;
+- remove `AttachThreadInput` and root `SetFocus` from the rc19 Browser architecture; explicit Focus/TabIntoCore recovery now uses native top-level `SetForegroundWindow`;
+- keep HKL, `GetGUIThreadInfo`, input-language, and IME diagnostics observation-only; continue to avoid HKL forcing, IME synthesis, and Firefox internal child-HWND focus guessing;
+- document pseudo-dock prototype limitations for scrolling/clipping, overlapping panes, multi-monitor DPI, minimize/restore, and external Firefox-window isolation;
+- add regression checks and a staged real-machine gate beginning with B1 English/number + Zhuyin before scaling to B1-B4/B1-B8;
+- stamp application/build/run/test metadata as `v0.0.6rc19` / `0.0.6-rc19` / FileVersion `0.0.6.19`;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc18
 
 - reverse rc17 persistent input-queue bridging after real-machine testing showed correct B7 root-HWND focus while typed text could still route to B8;

@@ -5,17 +5,13 @@ using AIEngineeringWorkspace.Interop;
 namespace AIEngineeringWorkspace.Browser;
 
 /// <summary>
-/// Central observer/recovery helper for docked Firefox native input.
+/// Central observer/activation helper for rc19 native top-level Firefox pseudo-docking.
 ///
-/// rc18 deliberately keeps normal mouse/keyboard handling in pass-through mode:
-/// Browser clicks are observed to track the active pane, but the Workspace does not call
-/// SetFocus, AttachThreadInput, change Firefox HKLs, or guess Firefox child HWNDs during
-/// ordinary interaction. Firefox remains responsible for its own address-bar, content,
-/// text-edit and IME focus transitions.
-///
-/// Cross-thread SetFocus is retained only as an explicit recovery primitive for TabIntoCore,
-/// the Focus toolbar button, and Workspace-driven keyboard navigation. That recovery uses a
-/// temporary AttachThreadInput transaction and always detaches immediately in finally.
+/// Firefox is not reparented and normal input is never proxied. The Workspace only tracks
+/// which native top-level Firefox root is active, records HKL/GUI-thread diagnostics, and
+/// offers an explicit recovery action that activates the top-level window through the
+/// normal Win32 foreground-window path. AttachThreadInput and SetFocus are intentionally
+/// not used in rc19.
 /// </summary>
 internal static class FirefoxInputCoordinator
 {
@@ -30,9 +26,7 @@ internal static class FirefoxInputCoordinator
             lock (Sync)
             {
                 if (_activeBrowserHwnd != IntPtr.Zero && !NativeMethods.IsWindow(_activeBrowserHwnd))
-                {
                     _activeBrowserHwnd = IntPtr.Zero;
-                }
                 return _activeBrowserHwnd;
             }
         }
@@ -44,8 +38,9 @@ internal static class FirefoxInputCoordinator
         workspaceThreadId = workspaceThreadId == 0 ? NativeMethods.GetCurrentThreadId() : workspaceThreadId;
         var browserThreadId = NativeMethods.GetWindowThreadProcessId(browserHwnd, out var browserPid);
         RuntimeLog.Info(
-            $"Firefox dock registered for native input pass-through. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; " +
-            $"BrowserThread={browserThreadId}; PID={browserPid}; PersistentBridge=False; AutomaticRootFocus=False; InputLanguageSync=False; Reason='{reason}'");
+            $"Firefox pseudo-dock registered. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; " +
+            $"BrowserThread={browserThreadId}; PID={browserPid}; SetParentUsed=False; PersistentBridge=False; AutomaticRootFocus=False; " +
+            $"InputLanguageSync=False; NativeTopLevel=True; Reason='{reason}'");
     }
 
     internal static void MarkActiveRoot(IntPtr browserHwnd, string reason)
@@ -56,9 +51,7 @@ internal static class FirefoxInputCoordinator
             var changed = _activeBrowserHwnd != browserHwnd;
             _activeBrowserHwnd = browserHwnd;
             if (changed)
-            {
-                RuntimeLog.Info($"Active Firefox root observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; NativeInputMode=PassThrough; Reason='{reason}'");
-            }
+                RuntimeLog.Info($"Active native Firefox top-level observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; NativeInputMode=TopLevelPseudoDock; Reason='{reason}'");
         }
     }
 
@@ -69,7 +62,7 @@ internal static class FirefoxInputCoordinator
             if (_activeBrowserHwnd == IntPtr.Zero) return;
             var previous = _activeBrowserHwnd;
             _activeBrowserHwnd = IntPtr.Zero;
-            RuntimeLog.Info($"Active Firefox root cleared. PreviousBrowserHWND=0x{previous.ToInt64():X}; Reason='{reason}'");
+            RuntimeLog.Info($"Active native Firefox top-level cleared. PreviousBrowserHWND=0x{previous.ToInt64():X}; Reason='{reason}'");
         }
     }
 
@@ -78,17 +71,20 @@ internal static class FirefoxInputCoordinator
         var active = ActiveBrowserHwnd;
         if (active == IntPtr.Zero)
         {
-            RuntimeLog.Debug($"Explicit Firefox focus recovery skipped because no active docked Browser is recorded. Reason='{reason}'");
+            RuntimeLog.Debug($"Explicit Firefox activation skipped because no active pseudo-docked Browser is recorded. Reason='{reason}'");
             return;
         }
-        FocusRoot(active, workspaceThreadId, reason);
+        ActivateTopLevel(active, workspaceThreadId, reason);
     }
 
-    internal static void FocusRoot(IntPtr browserHwnd, uint workspaceThreadId, string reason)
+    internal static void FocusRoot(IntPtr browserHwnd, uint workspaceThreadId, string reason) =>
+        ActivateTopLevel(browserHwnd, workspaceThreadId, reason);
+
+    internal static void ActivateTopLevel(IntPtr browserHwnd, uint workspaceThreadId, string reason)
     {
         if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd))
         {
-            RuntimeLog.Warn($"Explicit Firefox focus recovery skipped because BrowserHWND=0x{browserHwnd.ToInt64():X} is invalid. Reason='{reason}'");
+            RuntimeLog.Warn($"Explicit Firefox top-level activation skipped because BrowserHWND=0x{browserHwnd.ToInt64():X} is invalid. Reason='{reason}'");
             return;
         }
 
@@ -97,69 +93,21 @@ internal static class FirefoxInputCoordinator
             _activeBrowserHwnd = browserHwnd;
             workspaceThreadId = workspaceThreadId == 0 ? NativeMethods.GetCurrentThreadId() : workspaceThreadId;
             var browserThreadId = NativeMethods.GetWindowThreadProcessId(browserHwnd, out var browserPid);
-            if (browserThreadId == 0)
-            {
-                RuntimeLog.Warn($"Explicit Firefox focus recovery could not resolve BrowserThread. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; Reason='{reason}'");
-                return;
-            }
-
             var before = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
-            var bridgeRequired = workspaceThreadId != browserThreadId;
-            var bridgeAttached = false;
-            var bridgeDetached = !bridgeRequired;
-            var attachError = 0;
-            var detachError = 0;
-            IntPtr previousFocus = IntPtr.Zero;
-            IntPtr currentFocusWhileAttached = IntPtr.Zero;
-            var focusError = 0;
 
-            try
-            {
-                if (bridgeRequired)
-                {
-                    Marshal.SetLastPInvokeError(0);
-                    bridgeAttached = NativeMethods.AttachThreadInput(workspaceThreadId, browserThreadId, true);
-                    attachError = bridgeAttached ? 0 : Marshal.GetLastWin32Error();
-                    if (!bridgeAttached)
-                    {
-                        RuntimeLog.Warn(
-                            $"Temporary Firefox recovery bridge attach failed. WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; " +
-                            $"BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={attachError}; Reason='{reason}'");
-                        return;
-                    }
-                }
-
-                Marshal.SetLastPInvokeError(0);
-                previousFocus = NativeMethods.SetFocus(browserHwnd);
-                focusError = Marshal.GetLastPInvokeError();
-                currentFocusWhileAttached = NativeMethods.GetFocus();
-            }
-            finally
-            {
-                if (bridgeRequired && bridgeAttached)
-                {
-                    Marshal.SetLastPInvokeError(0);
-                    bridgeDetached = NativeMethods.AttachThreadInput(workspaceThreadId, browserThreadId, false);
-                    detachError = bridgeDetached ? 0 : Marshal.GetLastWin32Error();
-                    if (!bridgeDetached)
-                    {
-                        RuntimeLog.Warn(
-                            $"Temporary Firefox recovery bridge detach failed. WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; " +
-                            $"BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={detachError}; Reason='{reason}'");
-                    }
-                }
-            }
+            NativeMethods.ShowWindow(browserHwnd, NativeMethods.SW_RESTORE);
+            Marshal.SetLastPInvokeError(0);
+            var foregroundRequested = NativeMethods.SetForegroundWindow(browserHwnd);
+            var foregroundError = foregroundRequested ? 0 : Marshal.GetLastWin32Error();
 
             var after = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
             LastSnapshots[browserHwnd] = after;
             RuntimeLog.Info(
-                $"Explicit Firefox root focus recovery completed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; " +
-                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; BridgeRequired={bridgeRequired}; " +
-                $"TemporaryInputBridgeAttached={bridgeAttached}; TemporaryInputBridgeDetached={bridgeDetached}; AttachWin32={attachError}; DetachWin32={detachError}; " +
-                $"PreviousFocus=0x{previousFocus.ToInt64():X}; FocusWhileAttached=0x{currentFocusWhileAttached.ToInt64():X}; FocusWin32={focusError}; " +
-                $"ForegroundAfter=0x{after.Foreground.ToInt64():X}; GuiActiveAfter=0x{after.GuiActive.ToInt64():X}; GuiFocusAfter=0x{after.GuiFocus.ToInt64():X}; " +
-                $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(after.WorkspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(after.BrowserHkl)}; " +
-                $"InputLanguageMismatch={after.WorkspaceHkl != after.BrowserHkl}; InputLanguageSyncPosted=False; Reason='{reason}'");
+                $"Explicit native Firefox top-level activation completed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; " +
+                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; SetParentUsed=False; AttachThreadInputUsed=False; SetFocusUsed=False; " +
+                $"SetForegroundWindowResult={foregroundRequested}; ForegroundWin32={foregroundError}; ForegroundBefore=0x{before.Foreground.ToInt64():X}; ForegroundAfter=0x{after.Foreground.ToInt64():X}; " +
+                $"GuiActiveAfter=0x{after.GuiActive.ToInt64():X}; GuiFocusAfter=0x{after.GuiFocus.ToInt64():X}; WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(after.WorkspaceHkl)}; " +
+                $"BrowserHKL={InputLanguageDiagnostics.FormatHkl(after.BrowserHkl)}; InputLanguageMismatch={after.WorkspaceHkl != after.BrowserHkl}; InputLanguageSyncPosted=False; Reason='{reason}'");
         }
     }
 
@@ -168,7 +116,7 @@ internal static class FirefoxInputCoordinator
         var active = ActiveBrowserHwnd;
         if (active == IntPtr.Zero)
         {
-            RuntimeLog.Debug($"Active Firefox input-language observation skipped because no active docked Browser is recorded. Reason='{reason}'");
+            RuntimeLog.Debug($"Active Firefox input-language observation skipped because no active pseudo-docked Browser is recorded. Reason='{reason}'");
             return;
         }
 
@@ -183,7 +131,7 @@ internal static class FirefoxInputCoordinator
             RuntimeLog.Info(
                 $"Firefox input-language state observed without synchronization. BrowserHWND=0x{active.ToInt64():X}; BrowserThread={browserThreadId}; PID={browserPid}; " +
                 $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(workspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(browserHkl)}; " +
-                $"InputLanguageMismatch={workspaceHkl != browserHkl}; InputLanguageSyncPosted=False; NativeInputMode=PassThrough; Reason='{reason}'");
+                $"InputLanguageMismatch={workspaceHkl != browserHkl}; InputLanguageSyncPosted=False; NativeInputMode=TopLevelPseudoDock; Reason='{reason}'");
         }
     }
 
@@ -198,12 +146,13 @@ internal static class FirefoxInputCoordinator
             if (browserThreadId == 0) return;
 
             var snapshot = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
+            if (snapshot.Foreground == browserHwnd) _activeBrowserHwnd = browserHwnd;
             if (LastSnapshots.TryGetValue(browserHwnd, out var previous) && previous == snapshot) return;
 
             LastSnapshots[browserHwnd] = snapshot;
             RuntimeLog.Info(
-                $"Firefox input-state transition observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; PID={browserPid}; " +
-                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PersistentInputBridgeAttached=False; NativeInputMode=PassThrough; " +
+                $"Firefox pseudo-dock input-state transition observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; PID={browserPid}; " +
+                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; SetParentUsed=False; PersistentInputBridgeAttached=False; NativeInputMode=TopLevelPseudoDock; " +
                 $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(snapshot.WorkspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(snapshot.BrowserHkl)}; " +
                 $"InputLanguageMismatch={snapshot.WorkspaceHkl != snapshot.BrowserHkl}; Foreground=0x{snapshot.Foreground.ToInt64():X}; GuiInfoOk={snapshot.GuiInfoOk}; " +
                 $"GuiActive=0x{snapshot.GuiActive.ToInt64():X}; GuiFocus=0x{snapshot.GuiFocus.ToInt64():X}; GuiCaret=0x{snapshot.GuiCaret.ToInt64():X}; Reason='{reason}'");
@@ -219,7 +168,7 @@ internal static class FirefoxInputCoordinator
             if (_activeBrowserHwnd == browserHwnd)
             {
                 _activeBrowserHwnd = IntPtr.Zero;
-                RuntimeLog.Info($"Active Firefox root forgotten during dock teardown. BrowserHWND=0x{browserHwnd.ToInt64():X}");
+                RuntimeLog.Info($"Active native Firefox top-level forgotten during pseudo-dock teardown. BrowserHWND=0x{browserHwnd.ToInt64():X}");
             }
         }
     }
@@ -228,16 +177,16 @@ internal static class FirefoxInputCoordinator
     {
         var gui = new NativeMethods.GUITHREADINFO { cbSize = (uint)Marshal.SizeOf<NativeMethods.GUITHREADINFO>() };
         Marshal.SetLastPInvokeError(0);
-        var guiInfoOk = NativeMethods.GetGUIThreadInfo(browserThreadId, ref gui);
-        if (!guiInfoOk)
+        var guiInfoOk = browserThreadId != 0 && NativeMethods.GetGUIThreadInfo(browserThreadId, ref gui);
+        if (!guiInfoOk && browserThreadId != 0)
         {
             var error = Marshal.GetLastWin32Error();
-            RuntimeLog.Debug($"GetGUIThreadInfo failed during Firefox input probe. BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={error}");
+            RuntimeLog.Debug($"GetGUIThreadInfo failed during Firefox pseudo-dock input probe. BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={error}");
         }
 
         return new InputSnapshot(
             NativeMethods.GetKeyboardLayout(workspaceThreadId),
-            NativeMethods.GetKeyboardLayout(browserThreadId),
+            browserThreadId == 0 ? IntPtr.Zero : NativeMethods.GetKeyboardLayout(browserThreadId),
             NativeMethods.GetForegroundWindow(),
             guiInfoOk,
             gui.hwndActive,
