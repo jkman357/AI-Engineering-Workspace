@@ -33,6 +33,7 @@ internal static class NativeMethods
     internal const int SW_SHOWNORMAL = 1;
     internal const int SW_RESTORE = 9;
 
+    internal const uint WM_SETREDRAW = 0x000B;
     internal const uint WM_CLOSE = 0x0010;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
 
@@ -181,6 +182,17 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetParent(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, [MarshalAs(UnmanagedType.Bool)] bool bErase);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UpdateWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

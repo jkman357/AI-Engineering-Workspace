@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc07**
+Current version: **v0.0.6rc08**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -32,7 +32,7 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
-## v0.0.6rc07 — Auto Fit Reflow + Browser Repaint + Endpoint Badges
+## v0.0.6rc08 — Auto-Fit Completion + Native HWND Repaint + Git Status UI
 
 This RC continues the active **v0.0.6** line. It does not freeze `v0.0.6`.
 
@@ -331,7 +331,7 @@ run.cmd
 
 Launcher/application diagnostics are written under `logs\runtime\` when logging is enabled.
 
-## v0.0.6rc07 test focus / reflow / repaint / Shell integration
+## v0.0.6rc08 test focus / reflow / repaint / Shell integration
 
 1. Run `build.cmd` and then `run.cmd`.
 2. In Auto Fit, add/remove panes after using Free Layout and scrolling. Verify the remaining panes reflow from the top-left with no unexplained blank origin region.
@@ -391,3 +391,14 @@ Use in production, enterprise, medical, safety-critical, regulated, or other hig
 The project has not been independently validated, certified, or qualified for any specific regulated or safety-critical application.
 
 This README disclaimer is practical risk guidance. It does **not** restrict or modify the permissions granted under the MIT License. The applicable warranty and liability terms are stated in [`LICENSE`](LICENSE).
+
+
+## v0.0.6rc08 validation focus
+
+This RC closes three issues found during real Windows testing:
+
+- Auto Fit treats a single remaining pane as the whole Workspace and fills the visible client area from the top-left.
+- Docked Firefox resize/reflow uses a stronger native repaint sequence (redraw suppression during geometry commit, then browser/host/parent invalidation) to reduce stale foreign-HWND pixels.
+- File panes show visible Git repository-root badges even when the current folder is outside a repository; inside a work tree, file/folder badges continue to show clean/modified/added/deleted state using local `git.exe`.
+
+These changes do not add credential storage, browser-profile access, or Git write operations.

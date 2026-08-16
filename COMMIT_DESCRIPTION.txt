@@ -1,15 +1,15 @@
-fix: reflow Auto Fit, harden Firefox repaint, and simplify browser panes in v0.0.6rc07
+fix: complete Auto Fit, native HWND repaint, and Git status UI in v0.0.6rc08
 
 - continue the active v0.0.6 RC line without freezing or advancing the version
-- rebuild Auto Fit pane placement deterministically from File/Browser endpoint identity instead of stale Canvas coordinates
-- reset Workspace horizontal/vertical scroll offsets to the top-left whenever Auto Fit is applied
-- add a post-render Auto Fit pass that refits docked Firefox HWNDs after WPF layout settles
-- remove the duplicate Workspace Browser URL TextBox and return normal address entry/navigation to Firefox itself
-- retain Google as the default Launch + Dock startup URL without exposing a second address field in the Workspace UI
-- keep Browser pane controls focused on Workspace responsibilities: endpoint identity, launch/dock, focus recovery, detach, maximize/restore, move/resize, and close
-- add Win32 RedrawWindow invalidation during Firefox HWND resize and one final redraw after pane resize/reflow to reduce stale pixels and resize ghosting
-- add distinct color-coded routing endpoint badges for B1-B8 and F1-F4 when Show IDs is enabled
-- keep endpoint color as a visual aid only; routing identity remains the explicit alias plus stable internal PaneId GUID
-- retain native Windows Shell context menus, 7-Zip/compare/TortoiseGit Shell-extension participation, Git working-tree badges, File Manager sorting, and Free Layout behavior from rc06
-- retain command-line build/run scripts, runtime diagnostics, standard-user design, API-free architecture, credential/security wording, and the MIT License unchanged
-- update README, CHANGELOG, rc07 release notes, application metadata, and command-line version labels to v0.0.6rc07
+- make Auto Fit own the visible viewport geometry instead of preserving stale Free Layout canvas dimensions
+- make a single remaining File or Browser pane automatically fill the Workspace from the top-left without manual maximize
+- keep multi-pane Auto Fit deterministic and reset stale horizontal/vertical scroll offsets after reflow
+- suppress intermediate Firefox redraw while committing foreign child-HWND geometry with SetWindowPos
+- perform a stronger final repaint across the Firefox HWND, native host HWND, and WPF parent HWND to reduce stale pixels after resize/maximize/reflow
+- invalidate and update the native host chain after final geometry changes while retaining Firefox as the browser/navigation authority
+- detect Git repository-root folders when browsing a non-repository parent directory such as Desktop or the user profile
+- show visible repository summary badges for clean, modified, added/untracked, and deleted working-tree state
+- retain read-only local git.exe status probing for files/folders inside repositories
+- retain native Windows Shell context menus so registered 7-Zip, compare, TortoiseGit, Open With, Properties, and other Shell extensions remain available
+- retain endpoint identity badges, Free Layout move/resize, browser lifecycle ownership, standard-user design, API-free architecture, diagnostics/security wording, and the MIT License unchanged
+- update README, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc08

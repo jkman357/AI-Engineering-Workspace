@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.0.6rc07
+## v0.0.6rc08
 
 - make Auto Fit rebuild pane placement deterministically from endpoint identity and reset Workspace scroll offsets to the top-left;
 - add a post-render Browser fit/redraw pass after Auto Fit to prevent apparent blank-origin layout artifacts;

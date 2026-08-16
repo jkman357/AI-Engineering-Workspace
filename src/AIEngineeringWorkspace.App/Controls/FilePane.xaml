@@ -91,7 +91,7 @@
                                Grid.ColumnSpan="8"
                                Foreground="#666666"
                                FontSize="11"
-                               Text="Double-click folders to open. Drag files to a browser pane." />
+                               Text="Double-click folders to open. Native right-click menu; Git badges show repository / working-tree state." />
                 </Grid>
             </Border>
 
@@ -116,7 +116,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <Grid Width="18" Height="18" Margin="0,0,4,0">
                                             <Image Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{Binding Icon}" SnapsToDevicePixels="True" />
-                                            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Bottom" MinWidth="10" Height="11" Padding="1,0" Background="#F8F8F8" FontSize="9" FontWeight="Bold" LineHeight="9" TextAlignment="Center" Text="{Binding GitGlyph}" ToolTip="{Binding GitTooltip}" />
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" MinWidth="12" Height="12" Padding="1,0" Background="#FFFFFF" BorderBrush="#666666" BorderThickness="1" CornerRadius="2" ToolTip="{Binding GitTooltip}"><TextBlock FontSize="9" FontWeight="Bold" LineHeight="9" TextAlignment="Center" Text="{Binding GitGlyph}" Foreground="#111111" /></Border>
                                         </Grid>
                                         <TextBlock VerticalAlignment="Center" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>

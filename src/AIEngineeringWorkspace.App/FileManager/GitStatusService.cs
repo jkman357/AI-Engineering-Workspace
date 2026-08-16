@@ -60,17 +60,26 @@ internal static class GitStatusService
 
     internal static GitDecoration GetDecoration(GitFolderSnapshot snapshot, string fullPath, bool isDirectory)
     {
+        var target = Normalize(fullPath);
+
+        // When a File pane is showing a parent directory (Desktop, Downloads, user profile),
+        // the parent itself is usually not a Git work tree. Detect child directories that are
+        // repository roots so repository status is still visible without first entering them.
         if (!snapshot.IsRepository || string.IsNullOrWhiteSpace(snapshot.RepositoryRoot))
         {
-            return GitDecoration.None;
+            return isDirectory ? TryGetRepositoryRootDecoration(target) : GitDecoration.None;
         }
 
-        var target = Normalize(fullPath);
         if (!isDirectory)
         {
             return snapshot.States.TryGetValue(target, out var exact)
                 ? ToDecoration(exact)
                 : GitDecoration.None;
+        }
+
+        if (string.Equals(target, Normalize(snapshot.RepositoryRoot), StringComparison.OrdinalIgnoreCase))
+        {
+            return SummarizeRepository(snapshot);
         }
 
         var prefix = target.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
@@ -86,6 +95,54 @@ internal static class GitStatusService
         return aggregate == GitPathState.None ? GitDecoration.None : ToDecoration(aggregate);
     }
 
+    private static GitDecoration TryGetRepositoryRootDecoration(string directoryPath)
+    {
+        if (!HasDirectGitMarker(directoryPath))
+        {
+            return GitDecoration.None;
+        }
+
+        var repo = TryReadFolder(directoryPath);
+        if (!repo.IsRepository)
+        {
+            return new GitDecoration("G", "Git repository detected; working-tree status unavailable");
+        }
+
+        return SummarizeRepository(repo);
+    }
+
+    private static GitDecoration SummarizeRepository(GitFolderSnapshot snapshot)
+    {
+        var aggregate = GitPathState.None;
+        foreach (var state in snapshot.States.Values)
+        {
+            if (state != GitPathState.Clean)
+            {
+                aggregate = HigherPriority(aggregate, state);
+            }
+        }
+
+        if (aggregate != GitPathState.None)
+        {
+            var decoration = ToDecoration(aggregate);
+            return new GitDecoration(decoration.Glyph, $"Git repository: {decoration.Tooltip.Replace("Git: ", string.Empty)}");
+        }
+
+        return new GitDecoration("✓", "Git repository: clean");
+    }
+
+    private static bool HasDirectGitMarker(string folderPath)
+    {
+        try
+        {
+            var marker = Path.Combine(Path.GetFullPath(folderPath), ".git");
+            return Directory.Exists(marker) || File.Exists(marker);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private static bool HasGitMarkerInAncestry(string folderPath)
     {

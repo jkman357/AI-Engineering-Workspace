@@ -292,16 +292,37 @@ public sealed class BrowserDockHost : HwndHost
             return;
         }
 
-        if (!NativeMethods.MoveWindow(_browserHwnd, 0, 0, width, height, true))
+        // Firefox is a foreign top-level HWND converted to WS_CHILD. During WPF Canvas geometry
+        // changes it can paint one frame using the old bounds. Suppress that intermediate paint,
+        // commit the final child bounds, then invalidate the whole native host chain.
+        SetBrowserRedraw(false);
+        try
         {
-            RuntimeLog.Warn($"MoveWindow failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}; Win32={Marshal.GetLastWin32Error()}");
-            return;
+            if (!NativeMethods.SetWindowPos(
+                    _browserHwnd,
+                    IntPtr.Zero,
+                    0,
+                    0,
+                    width,
+                    height,
+                    NativeMethods.SWP_NOZORDER |
+                    NativeMethods.SWP_NOACTIVATE |
+                    NativeMethods.SWP_SHOWWINDOW))
+            {
+                RuntimeLog.Warn($"SetWindowPos resize failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}; Win32={Marshal.GetLastWin32Error()}");
+                return;
+            }
+
+            _lastWidth = width;
+            _lastHeight = height;
+        }
+        finally
+        {
+            SetBrowserRedraw(true);
         }
 
-        _lastWidth = width;
-        _lastHeight = height;
-        RequestBrowserRedraw(immediate: false);
-        RuntimeLog.Debug($"Browser resize. HWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}");
+        RequestBrowserRedraw(immediate: false, includeParent: false);
+        RuntimeLog.Debug($"Browser resize committed. HWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}");
     }
 
     public void FinalizeResizeRepaint()
@@ -311,16 +332,34 @@ public sealed class BrowserDockHost : HwndHost
             return;
         }
 
-        // Foreign HWNDs hosted inside WPF can leave stale pixels after rapid geometry changes.
-        // Force one final resize + redraw after the drag/reflow settles.
         _lastWidth = -1;
         _lastHeight = -1;
         ResizeDockedWindow();
-        RequestBrowserRedraw(immediate: true);
-        RuntimeLog.Debug($"Browser final repaint requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; HostHWND=0x{_hostHwnd.ToInt64():X}");
+
+        // Final pass is deliberately stronger than live resize: repaint browser, native host,
+        // and the WPF-owned parent HWND to erase pixels exposed by the old foreign-HWND bounds.
+        RequestBrowserRedraw(immediate: true, includeParent: true);
+        RuntimeLog.Debug($"Browser final repaint completed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; HostHWND=0x{_hostHwnd.ToInt64():X}");
     }
 
-    private void RequestBrowserRedraw(bool immediate)
+    private void SetBrowserRedraw(bool enabled)
+    {
+        if (_browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(_browserHwnd))
+        {
+            return;
+        }
+
+        NativeMethods.SendMessageTimeout(
+            _browserHwnd,
+            NativeMethods.WM_SETREDRAW,
+            enabled ? new UIntPtr(1) : UIntPtr.Zero,
+            IntPtr.Zero,
+            NativeMethods.SMTO_ABORTIFHUNG,
+            120,
+            out _);
+    }
+
+    private void RequestBrowserRedraw(bool immediate, bool includeParent)
     {
         var flags = NativeMethods.RDW_INVALIDATE | NativeMethods.RDW_ALLCHILDREN | NativeMethods.RDW_FRAME;
         if (immediate)
@@ -328,14 +367,33 @@ public sealed class BrowserDockHost : HwndHost
             flags |= NativeMethods.RDW_ERASE | NativeMethods.RDW_ERASENOW | NativeMethods.RDW_UPDATENOW;
         }
 
-        if (_hostHwnd != IntPtr.Zero && NativeMethods.IsWindow(_hostHwnd))
+        RedrawNativeWindow(_browserHwnd, flags, immediate);
+        RedrawNativeWindow(_hostHwnd, flags, immediate);
+
+        if (includeParent && _hostHwnd != IntPtr.Zero && NativeMethods.IsWindow(_hostHwnd))
         {
-            NativeMethods.RedrawWindow(_hostHwnd, IntPtr.Zero, IntPtr.Zero, flags);
+            var parent = NativeMethods.GetParent(_hostHwnd);
+            if (parent != IntPtr.Zero && NativeMethods.IsWindow(parent))
+            {
+                RedrawNativeWindow(parent, flags, immediate);
+            }
         }
 
-        if (_browserHwnd != IntPtr.Zero && NativeMethods.IsWindow(_browserHwnd))
+        InvalidateVisual();
+    }
+
+    private static void RedrawNativeWindow(IntPtr hwnd, uint flags, bool immediate)
+    {
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd))
         {
-            NativeMethods.RedrawWindow(_browserHwnd, IntPtr.Zero, IntPtr.Zero, flags);
+            return;
+        }
+
+        NativeMethods.InvalidateRect(hwnd, IntPtr.Zero, true);
+        NativeMethods.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero, flags);
+        if (immediate)
+        {
+            NativeMethods.UpdateWindow(hwnd);
         }
     }
 

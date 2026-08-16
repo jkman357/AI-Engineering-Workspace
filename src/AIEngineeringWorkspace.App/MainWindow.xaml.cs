@@ -449,8 +449,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Auto Fit is a deterministic reflow mode, not a preservation of old Canvas geometry.
-        // Rebuild the order from pane identity so deleted/moved panes cannot leave visual holes.
+        // Auto Fit owns geometry. Never preserve stale Free Layout coordinates here.
         var panes = GetAllPanes()
             .OrderBy(p => p is FilePane ? 0 : 1)
             .ThenBy(p => p switch
@@ -463,6 +462,8 @@ public partial class MainWindow : Window
 
         if (panes.Count == 0)
         {
+            WorkspaceCanvas.Width = Math.Max(1, WorkspaceScrollViewer.ViewportWidth);
+            WorkspaceCanvas.Height = Math.Max(1, WorkspaceScrollViewer.ViewportHeight);
             return;
         }
 
@@ -470,21 +471,54 @@ public partial class MainWindow : Window
         var viewportHeight = WorkspaceScrollViewer.ViewportHeight;
         if (viewportWidth <= 1)
         {
-            viewportWidth = Math.Max(900, WorkspaceScrollViewer.ActualWidth - 8);
+            viewportWidth = Math.Max(1, WorkspaceScrollViewer.ActualWidth - 2);
         }
         if (viewportHeight <= 1)
         {
-            viewportHeight = Math.Max(560, WorkspaceScrollViewer.ActualHeight - 8);
+            viewportHeight = Math.Max(1, WorkspaceScrollViewer.ActualHeight - 2);
         }
 
-        var surfaceWidth = Math.Max(900, viewportWidth - 4);
-        var surfaceHeight = Math.Max(560, viewportHeight - 4);
+        // Keep the Auto Fit surface equal to the visible viewport so ScrollViewer alignment,
+        // stale Free Layout canvas size, and old scroll offsets cannot create visual holes.
+        var surfaceWidth = Math.Max(1, viewportWidth - 2);
+        var surfaceHeight = Math.Max(1, viewportHeight - 2);
         WorkspaceCanvas.Width = surfaceWidth;
         WorkspaceCanvas.Height = surfaceHeight;
 
+        if (panes.Count == 1)
+        {
+            // A single pane is the workspace. Fill it completely without requiring manual maximize.
+            var only = panes[0];
+            only.Visibility = Visibility.Visible;
+            only.Width = Math.Max(only.MinWidth, surfaceWidth);
+            only.Height = Math.Max(only.MinHeight, surfaceHeight);
+            SetPanePosition(only, new Point(0, 0));
+
+            WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+            WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+
+            if (only is BrowserTile singleBrowser)
+            {
+                singleBrowser.FitBrowserToPane();
+            }
+
+            Dispatcher.InvokeAsync(() =>
+            {
+                WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+                WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+                if (only is BrowserTile browser)
+                {
+                    browser.FitBrowserToPane();
+                    browser.FinalizeBrowserRepaint();
+                }
+            }, DispatcherPriority.Render);
+
+            RuntimeLog.Info($"Auto Fit single-pane fill applied. Pane={GetAlias(only)}; Surface={surfaceWidth:0}x{surfaceHeight:0}; Position=0,0; ScrollReset=0,0");
+            return;
+        }
+
         var columns = panes.Count switch
         {
-            1 => 1,
             2 => 2,
             3 => 3,
             4 => 2,
@@ -525,8 +559,6 @@ public partial class MainWindow : Window
             }
         }
 
-        // Auto Fit must always start from the top-left of the freshly reflowed surface.
-        // Old Free Layout scroll offsets otherwise make a correctly positioned grid appear to have holes.
         WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
         WorkspaceScrollViewer.ScrollToVerticalOffset(0);
 
