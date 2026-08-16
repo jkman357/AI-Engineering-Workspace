@@ -54,11 +54,15 @@ public partial class BrowserTile : UserControl
         Identity = identity;
         TileTitleTextBlock.Text = identity.DisplayName;
         EndpointBadgeTextBlock.Text = identity.Alias;
+        EndpointOverlayBadgeTextBlock.Text = identity.Alias;
         EndpointBadgeBorder.ToolTip = $"Routing endpoint {identity.Alias}\nPaneId={identity.PaneId:D}";
         var badgeStyle = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
         EndpointBadgeBorder.Background = badgeStyle.Background;
         EndpointBadgeBorder.BorderBrush = badgeStyle.Border;
         EndpointBadgeTextBlock.Foreground = badgeStyle.Foreground;
+        EndpointOverlayBadgeBorder.Background = badgeStyle.Background;
+        EndpointOverlayBadgeBorder.BorderBrush = badgeStyle.Border;
+        EndpointOverlayBadgeTextBlock.Foreground = badgeStyle.Foreground;
         _initialUrl = string.IsNullOrWhiteSpace(initialUrl) ? "https://www.google.com/" : initialUrl;
         UpdateBrowserControls();
         SetStatus("Ready.");
@@ -66,7 +70,7 @@ public partial class BrowserTile : UserControl
     }
 
     internal void SetEndpointIdVisibility(bool visible)
-        => EndpointBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        => EndpointOverlayBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
 
     internal void FitBrowserToPane()

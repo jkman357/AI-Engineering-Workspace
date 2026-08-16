@@ -32,10 +32,12 @@ public partial class FilePane : UserControl
     public event Action<FilePane>? MoveCompleted;
     public event Action<FilePane, PaneResizeDirection, double, double>? ResizeRequested;
     public event Action<FilePane>? ActivateRequested;
+    public event Action<FilePane, string>? PathChanged;
 
     internal PaneIdentity Identity { get; private set; } = PaneIdentity.Create(PaneKind.File, 1);
     public string PaneId => Identity.DisplayName;
     public string EndpointAlias => Identity.Alias;
+    internal string CurrentPath => _currentPath;
 
     public FilePane()
     {
@@ -53,17 +55,21 @@ public partial class FilePane : UserControl
         Identity = identity;
         PaneTitleTextBlock.Text = identity.DisplayName;
         EndpointBadgeTextBlock.Text = identity.Alias;
+        EndpointOverlayBadgeTextBlock.Text = identity.Alias;
         EndpointBadgeBorder.ToolTip = $"Routing endpoint {identity.Alias}\nPaneId={identity.PaneId:D}";
         var badgeStyle = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
         EndpointBadgeBorder.Background = badgeStyle.Background;
         EndpointBadgeBorder.BorderBrush = badgeStyle.Border;
         EndpointBadgeTextBlock.Foreground = badgeStyle.Foreground;
+        EndpointOverlayBadgeBorder.Background = badgeStyle.Background;
+        EndpointOverlayBadgeBorder.BorderBrush = badgeStyle.Border;
+        EndpointOverlayBadgeTextBlock.Foreground = badgeStyle.Foreground;
         NavigateTo(initialPath);
         RuntimeLog.Info($"[{Identity.Alias}] File pane configured. PaneId={Identity.PaneId:D}; DisplayIndex={Identity.DisplayIndex}; InitialPath='{initialPath}'");
     }
 
     internal void SetEndpointIdVisibility(bool visible)
-        => EndpointBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        => EndpointOverlayBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
     private void NavigateTo(string? requestedPath)
     {
@@ -136,6 +142,7 @@ public partial class FilePane : UserControl
                 }
             }
 
+            var pathChanged = !string.Equals(_currentPath, path, StringComparison.OrdinalIgnoreCase);
             _currentPath = path;
             PathTextBox.Text = path;
             _entries.Clear();
@@ -145,6 +152,10 @@ public partial class FilePane : UserControl
             SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s) | Git: scanning…");
             RuntimeLog.Info($"[{Identity.Alias}] Folder loaded without blocking Git probe. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}; Generation={generation}");
             _ = RefreshGitDecorationsAsync(path, generation, _gitProbeCts.Token);
+            if (pathChanged)
+            {
+                PathChanged?.Invoke(this, path);
+            }
         }
         catch (UnauthorizedAccessException ex)
         {

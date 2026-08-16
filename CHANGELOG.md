@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.6rc10
+
+- add New / Open / Save / Save As Workspace-project commands with a human-readable `.aew` JSON format;
+- persist pane type, stable `PaneId`, F#/B# display index, X/Y geometry, width/height, layout mode, Show IDs state, and File-pane folder paths;
+- restore missing saved File paths to Desktop without failing the entire Workspace load;
+- intentionally do not persist Browser current URLs, browser history, login/session state, or credentials; restored Browser panes continue to launch Firefox at Google;
+- add unsaved-change (`*`) tracking and Save / Don't Save / Cancel prompts for New, Open, and application close;
+- keep compact boxed F#/B# aliases permanently visible and remove duplicate visible `Files N` / `Browser N` title text;
+- add a 64×64 color-coded endpoint overlay when Show IDs is enabled while retaining `PaneId` as the stable internal identity;
+- add Workspace-project round-trip and endpoint-badge regression checks;
+- stamp executable/build/test metadata as `v0.0.6rc10` / `0.0.6.10` from `Directory.Build.props`;
+- retain rc09 review hardening, native Shell integration, Git status, Firefox HWND lifecycle, diagnostics/security boundaries, and the MIT License unchanged.
+
 ## v0.0.6rc09
 
 - fix Auto Fit pane overlap by introducing a minimum-size-aware layout planner that enlarges the Canvas and scrolls when the viewport cannot physically contain all panes;

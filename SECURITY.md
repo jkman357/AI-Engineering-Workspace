@@ -47,6 +47,16 @@ Important implications:
 - future message/context routing may increase the consequences of controlling an authenticated browser session;
 - workstation access, browser-profile security, screen/clipboard exposure, and operating-system endpoint controls remain relevant trust assumptions.
 
+## Workspace project file boundary
+
+`.aew` Workspace project files are local JSON documents used to restore UI/workspace state. The current schema may contain local filesystem paths, pane aliases/PaneIds, pane geometry, layout mode, main-window geometry/state, and the Show IDs preference.
+
+The current schema intentionally does **not** persist Browser current URLs, browsing history, cookies, login/session state, password-manager data, account credentials, or passwords. Restored Browser panes are endpoint/layout definitions and start Firefox at the configured default startup URL (Google) when launched.
+
+A Workspace project can still reveal local path names and project/workstation structure. Treat `.aew` files as local engineering metadata and review them before publishing or sharing outside the intended environment.
+
+If a saved File path is unavailable at load time, the application falls back that pane to the user's Desktop rather than creating the missing directory or failing the entire project.
+
 ## Diagnostics
 
 Runtime logs are local engineering diagnostics and are not automatically uploaded by the application.

@@ -7,7 +7,9 @@ Run("AutoFit_12Panes_NoOverlap", TestAutoFit12PanesNoOverlap);
 Run("AutoFit_SinglePane_FillsViewport", TestSinglePaneFill);
 Run("GitPorcelain_Rename_UsesDestinationPath", TestRenameUsesDestination);
 Run("GitBadge_Xaml_CollapsesEmptyGlyph", TestGitBadgeCollapsed);
-Run("Version_SingleSource_IsRc09", TestVersionSource);
+Run("Version_SingleSource_IsRc10", TestVersionSource);
+Run("WorkspaceProject_RoundTrip_PreservesLayoutAndFilePath", TestWorkspaceProjectRoundTrip);
+Run("EndpointBadge_ShowIds_Uses64x64Overlay", TestEndpointBadgeSize);
 
 if (failures.Count == 0)
 {
@@ -84,9 +86,74 @@ void TestVersionSource()
     var propsPath = Path.Combine(root, "Directory.Build.props");
     var doc = XDocument.Load(propsPath);
     var values = doc.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value, StringComparer.OrdinalIgnoreCase);
-    Assert(values["WorkspaceVersionLabel"] == "v0.0.6rc09", "WorkspaceVersionLabel drift");
-    Assert(values["Version"] == "0.0.6-rc09", "package Version drift");
-    Assert(values["FileVersion"] == "0.0.6.9", "FileVersion drift");
+    Assert(values["WorkspaceVersionLabel"] == "v0.0.6rc10", "WorkspaceVersionLabel drift");
+    Assert(values["Version"] == "0.0.6-rc10", "package Version drift");
+    Assert(values["FileVersion"] == "0.0.6.10", "FileVersion drift");
+}
+
+void TestWorkspaceProjectRoundTrip()
+{
+    var path = Path.Combine(Path.GetTempPath(), $"aiew-{Guid.NewGuid():N}.aew");
+    try
+    {
+        var paneId = Guid.NewGuid();
+        var project = new WorkspaceProjectDocument
+        {
+            ApplicationVersion = "v0.0.6rc10",
+            LayoutMode = WorkspaceLayoutMode.FreeLayout,
+            ShowEndpointIds = true,
+            Panes = new List<WorkspacePaneState>
+            {
+                new()
+                {
+                    Kind = PaneKind.File,
+                    PaneId = paneId,
+                    DisplayIndex = 2,
+                    X = 123,
+                    Y = 45,
+                    Width = 456,
+                    Height = 321,
+                    FilePath = @"C:\Example"
+                },
+                new()
+                {
+                    Kind = PaneKind.Browser,
+                    PaneId = Guid.NewGuid(),
+                    DisplayIndex = 1,
+                    X = 600,
+                    Y = 45,
+                    Width = 720,
+                    Height = 540
+                }
+            }
+        };
+
+        WorkspaceProjectService.Save(path, project);
+        var loaded = WorkspaceProjectService.Load(path);
+        Assert(loaded.LayoutMode == WorkspaceLayoutMode.FreeLayout, "layout mode not preserved");
+        Assert(loaded.ShowEndpointIds, "Show IDs state not preserved");
+        var file = loaded.Panes.Single(p => p.Kind == PaneKind.File);
+        Assert(file.PaneId == paneId && file.DisplayIndex == 2, "File endpoint identity not preserved");
+        Assert(file.X == 123 && file.Y == 45 && file.Width == 456 && file.Height == 321, "pane geometry not preserved");
+        Assert(file.FilePath == @"C:\Example", "File path not preserved");
+        Assert(typeof(WorkspacePaneState).GetProperty("BrowserUrl") is null, "Browser URL must not be persisted by Workspace project schema");
+    }
+    finally
+    {
+        if (File.Exists(path)) File.Delete(path);
+        if (File.Exists(path + ".tmp")) File.Delete(path + ".tmp");
+    }
+}
+
+void TestEndpointBadgeSize()
+{
+    var root = FindRepositoryRoot();
+    foreach (var file in new[] { "BrowserTile.xaml", "FilePane.xaml" })
+    {
+        var xaml = File.ReadAllText(Path.Combine(root, "src", "AIEngineeringWorkspace.App", "Controls", file));
+        Assert(xaml.Contains("x:Name=\"EndpointOverlayBadgeBorder\"", StringComparison.Ordinal), $"{file} large endpoint badge missing");
+        Assert(xaml.Contains("Width=\"64\"", StringComparison.Ordinal) && xaml.Contains("Height=\"64\"", StringComparison.Ordinal), $"{file} endpoint badge is not 64x64");
+    }
 }
 
 string FindRepositoryRoot()

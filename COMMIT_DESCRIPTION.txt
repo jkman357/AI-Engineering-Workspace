@@ -1,20 +1,20 @@
-fix: harden rc08 review findings in v0.0.6rc09
+feat: add Workspace project persistence and endpoint UI cleanup in v0.0.6rc10
 
 - continue the active v0.0.6 RC line without freezing or advancing the version
-- replace Auto Fit fixed grid sizing with a minimum-size-aware layout planner so pane placement stride and actual pane dimensions cannot overlap
-- enlarge the Auto Fit Canvas and allow scrolling when supported pane counts physically cannot fit the current viewport
-- keep the single-pane Auto Fit invariant that one remaining pane fills the Workspace
-- move Git status/repository probing off the WPF dispatcher so file/folder entries render before Git decoration completes
-- add cancellable Git probes, navigation-generation guards, short snapshot caching, and cancellation-aware git.exe process waits
-- prevent stale Git results from a previous folder navigation from updating the current File pane
-- fix porcelain v1 -z rename/copy parsing to keep the current/destination path and only consume the following old/source path
-- collapse the Git overlay when GitGlyph is empty so non-Git items do not show blank badge boxes
-- treat Firefox launch as a pending transaction inside FirefoxWindowService immediately after Process.Start
-- add synchronous Workspace-shutdown cleanup for a pending Firefox launch before HWND discovery/BrowserTile ownership recording completes
-- clean ambiguous, canceled, and timeout launch transaction candidates while preserving the pre-launch Firefox HWND baseline
-- centralize executable version authority in Directory.Build.props and derive application/build/run/test version labels from assembly/build metadata
-- stamp rc09 as Version 0.0.6-rc09, FileVersion 0.0.6.9, and InformationalVersion v0.0.6rc09
-- add a dependency-free AIEngineeringWorkspace.Tests regression project and root test.cmd
-- add regression checks for 12-pane Auto Fit non-overlap, single-pane fill, Git rename destination parsing, empty Git-badge collapse markup, and rc09 version consistency
-- update README, CHANGELOG, rc09 release notes, solution/project structure, scripts, and diagnostics folders
-- retain native Windows Shell context menus, TortoiseGit/7-Zip/compare Shell integration, Firefox HWND docking, security/privacy wording, standard-user design, API-free architecture, and the MIT License unchanged
+- add New, Open, Save, and Save As commands for AI Engineering Workspace project files
+- add a human-readable versioned .aew JSON format for persistent Workspace state
+- persist Auto Fit / Free Layout mode, pane kind, stable PaneId, F#/B# display index, X/Y position, width/height, Show IDs state, and main-window size/state
+- persist each File pane's current folder path and restore it when the Workspace project is reopened
+- fall back an unavailable saved File-pane path to the user's Desktop without failing the entire Workspace project load
+- intentionally exclude Browser current URL, browser history, cookies, login/session state, passwords, and credentials from the Workspace-project schema
+- reconstruct saved Browser panes as layout/routing endpoints and keep Launch + Dock startup at Google
+- add unsaved Workspace change tracking with a title-bar * marker and Save / Don't Save / Cancel prompts for New, Open, and application close
+- keep compact boxed F1-F4 / B1-B8 endpoint aliases permanently visible in pane headers and remove duplicate visible Files N / Browser N title text
+- add an optional 64x64 color-coded endpoint badge overlay when Show IDs is enabled
+- retain endpoint color as a human-facing cue only; routing identity remains the explicit alias plus stable PaneId GUID
+- add Workspace project round-trip regression coverage and verify Browser URL state is not represented in the persisted pane schema
+- add regression coverage for 64x64 Show IDs endpoint overlays and update the single-source rc10 version test
+- document .aew local-path metadata as a security/privacy boundary and keep credential/browser-profile wording unchanged
+- retain rc09 Auto Fit, asynchronous Git decoration, pending Firefox launch ownership hardening, native Windows Shell/TortoiseGit/7-Zip integration, diagnostics policy, standard-user design, API-free architecture, and the MIT License unchanged
+- stamp application/build/run/test metadata as v0.0.6rc10 / 0.0.6.10 from Directory.Build.props
+- update README, SECURITY.md, CHANGELOG, release notes, tests, and command-line version labels for v0.0.6rc10

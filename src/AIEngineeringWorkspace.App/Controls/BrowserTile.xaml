@@ -50,6 +50,7 @@
                     </Thumb>
 
                     <TextBlock x:Name="TileTitleTextBlock"
+                               Visibility="Collapsed"
                                Grid.Row="0"
                                Grid.Column="1"
                                Margin="0,0,7,5"
@@ -61,12 +62,13 @@
                             Grid.Row="0"
                             Grid.Column="2"
                             Margin="0,0,7,5"
-                            Padding="6,2"
+                            MinWidth="40"
+                            Padding="8,3"
                             BorderBrush="#777777"
-                            BorderThickness="1"
-                            CornerRadius="3"
+                            BorderThickness="2"
+                            CornerRadius="4"
                             Background="#FFFFFF"
-                            Visibility="Collapsed">
+                            Visibility="Visible">
                         <TextBlock x:Name="EndpointBadgeTextBlock"
                                    FontWeight="Bold"
                                    Text="B1" />
@@ -147,6 +149,25 @@
                 </Grid>
             </Border>
         </Grid>
+        </Border>
+
+        <Border x:Name="EndpointOverlayBadgeBorder"
+                Width="64"
+                Height="64"
+                Margin="18,88,0,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Panel.ZIndex="900"
+                IsHitTestVisible="False"
+                BorderThickness="3"
+                CornerRadius="8"
+                Visibility="Collapsed">
+            <TextBlock x:Name="EndpointOverlayBadgeTextBlock"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="25"
+                       FontWeight="Bold"
+                       Text="B1" />
         </Border>
 
         <Grid x:Name="ResizeChrome" Panel.ZIndex="999">

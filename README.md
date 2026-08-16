@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc09**
+Current version: **v0.0.6rc10**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -31,6 +31,39 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc10 — Workspace Project Save/Load + Endpoint UI
+
+This RC continues the active **v0.0.6** line and adds the first persistent Workspace-project format without freezing the release.
+
+### Workspace project files (`.aew`)
+
+The top toolbar now provides New / Open / Save / Save As commands. A Workspace project is a human-readable JSON document using the `.aew` extension.
+
+The project persists:
+
+- Auto Fit or Free Layout mode;
+- each pane's stable `PaneId` and human-facing `F#` / `B#` alias;
+- pane X/Y position and width/height;
+- File-pane current folder path;
+- Show IDs state;
+- main-window size/state.
+
+Browser history, the currently browsed URL, cookies, session state, passwords, and credentials are **not** part of the Workspace-project schema. Restored Browser panes are reconstructed as endpoints only; `Launch + Dock` continues to start Firefox at `https://www.google.com/` and normal navigation remains Firefox-owned.
+
+If a saved File-pane folder no longer exists when a project is opened, that pane falls back to the user's Desktop and records the fallback in runtime diagnostics. A missing folder does not cause the entire Workspace project to fail loading.
+
+Unsaved pane/layout/path changes mark the window title with `*`. New/Open/Close prompts allow the user to save or discard those changes.
+
+### Endpoint UI cleanup
+
+The duplicate `Files 1` / `Browser 1` title text is no longer the visible endpoint label. The compact boxed alias (`F1..F4` / `B1..B8`) remains visible in each pane header and uses the endpoint color palette.
+
+When `#` / Show IDs is enabled, each pane additionally displays a **64×64** color-coded endpoint badge. The large badge is a human-facing routing aid only; stable internal identity remains `PaneId` plus the explicit alias.
+
+### Regression coverage
+
+The dependency-free test harness now also checks Workspace-project JSON round-trip behavior, confirms Browser URL state is not part of the persisted pane schema, validates rc10 version authority, and checks the 64×64 endpoint overlay markup.
 
 ## v0.0.6rc09 — Review Hardening
 
@@ -375,21 +408,21 @@ Launcher/application diagnostics are written under `logs\runtime\` when logging 
 9. Re-test Browser Launch + Dock, normal page keyboard input, Focus recovery, Detach, pane maximize/restore, and Workspace shutdown lifecycle.
 10. If repaint/focus/Shell behavior fails, attach the runtime log and note the pane alias, selected file type (if applicable), and exact action sequence.
 
-## v0.0.6rc09 validation focus
+## v0.0.6rc10 validation focus
 
 1. Run `build.cmd`, then `test.cmd`; both must return exit code 0 before GUI testing.
-2. Exercise 12 total panes in Auto Fit at a 1280×720-class viewport. Panes may require scrolling, but they must not overlap.
-3. Navigate a File pane to a parent containing several Git repositories. File entries must appear immediately; Git badges may populate afterward without freezing the UI. Quickly navigate away while Git scanning is active and verify stale badges do not overwrite the new folder.
-4. Rename a tracked Git file and verify status follows the new/current path, not the old path. Ordinary non-Git items must not show a blank badge box.
-5. Start `Launch + Dock` and immediately close the Workspace while Firefox discovery is still pending. The Workspace-launched Firefox window must not be left orphaned; pre-existing Firefox windows must remain untouched.
-6. Check executable file/version metadata and logs: rc09 runtime/build artifacts must identify `v0.0.6rc09` / `0.0.6.9`.
+2. Arrange panes in Free Layout, change File paths, enable Show IDs, and save a `.aew` project. Close/reopen it and verify pane aliases, `PaneId`-backed identity, geometry, layout mode, File paths, and Show IDs state are restored.
+3. Rename or temporarily remove one saved File-pane folder before reopening the project. Only that File pane must fall back to Desktop; the rest of the project must still load.
+4. Open a saved project containing Browser panes. The panes must be restored without restoring browsing history/current URL. `Launch + Dock` must start at Google.
+5. Verify compact boxed `F#` / `B#` aliases remain visible. Toggle `#` and verify the large endpoint overlay is approximately 64×64 and color-coded.
+6. Modify pane position/size/path after saving and confirm the title gains `*`. Verify New/Open/application Close prompts allow Save / Don't Save / Cancel behavior.
+7. Re-run rc09 review-hardening checks: Auto Fit must not overlap, Git decoration must remain asynchronous, and pending Firefox launch cleanup must not orphan a Workspace-launched window.
+8. Check executable/file/log metadata: rc10 artifacts must identify `v0.0.6rc10` / `0.0.6.10`.
 
 ## Current limits / non-goals
 
 This remains an RC-stage engineering POC. The following are not implemented yet:
 
-- Workspace Save / Load
-- persisted pane geometry/layout mode
 - cross-chat context/message routing
 - controlled clipboard routing between endpoints
 - AI APIs
@@ -404,8 +437,8 @@ Adaptive Dynamic Pane Workspace
 Endpoint Identity
         +
 File / Browser UX
-        ↓
-Workspace Save / Load
+        +
+Workspace Project Save / Load
         ↓
 Endpoint Registry
         ↓

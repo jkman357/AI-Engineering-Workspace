@@ -22,6 +22,18 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="NewWorkspaceButton_Click" ToolTip="New Workspace project">
+                        <TextBlock FontSize="16" Text="✦" />
+                    </Button>
+                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="OpenWorkspaceButton_Click" ToolTip="Open Workspace project (.aew)">
+                        <TextBlock FontSize="16" Text="📂" />
+                    </Button>
+                    <Button Width="38" Height="30" Margin="0,0,6,0" Click="SaveWorkspaceButton_Click" ToolTip="Save Workspace project">
+                        <TextBlock FontSize="16" Text="💾" />
+                    </Button>
+                    <Button Width="38" Height="30" Margin="0,0,12,0" Click="SaveWorkspaceAsButton_Click" ToolTip="Save Workspace project as...">
+                        <TextBlock FontSize="15" Text="💾+" />
+                    </Button>
                     <Button Width="38" Height="30" Margin="0,0,6,0" Click="AddFilePaneButton_Click" ToolTip="Add File pane">
                         <TextBlock FontSize="16" Text="📁+" />
                     </Button>
@@ -31,7 +43,7 @@
                     <Button x:Name="LayoutModeButton" Width="38" Height="30" Margin="0,0,6,0" Click="LayoutModeButton_Click" ToolTip="Auto Fit layout is ON. Click to use Free Layout.">
                         <TextBlock x:Name="LayoutModeGlyph" FontSize="17" FontWeight="Bold" Text="▦" />
                     </Button>
-                    <Button x:Name="ShowIdsButton" Width="38" Height="30" Margin="0,0,6,0" Click="ShowIdsButton_Click" ToolTip="Show routing endpoint IDs (B1-B8 / F1-F4)">
+                    <Button x:Name="ShowIdsButton" Width="38" Height="30" Margin="0,0,6,0" Click="ShowIdsButton_Click" ToolTip="Show 64×64 routing endpoint badges (B1-B8 / F1-F4)">
                         <TextBlock FontSize="16" FontWeight="Bold" Text="#" />
                     </Button>
                     <Button Width="38" Height="30" Click="DetachAllButton_Click" ToolTip="Detach all docked Firefox windows">

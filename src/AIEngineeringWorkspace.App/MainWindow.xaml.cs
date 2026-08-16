@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using AIEngineeringWorkspace.Controls;
 using AIEngineeringWorkspace.Infrastructure;
 using AIEngineeringWorkspace.Workspace;
@@ -26,12 +28,15 @@ public partial class MainWindow : Window
     private Point _maximizedPanePosition;
     private Size _maximizedPaneSize;
     private int _zCounter = 1;
+    private string? _currentWorkspacePath;
+    private bool _workspaceDirty;
+    private bool _suppressDirtyTracking;
 
     public MainWindow()
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Review Hardening";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Workspace Project Save/Load + Endpoint UI";
 
         _healthTimer = new DispatcherTimer
         {
@@ -53,6 +58,7 @@ public partial class MainWindow : Window
                 {
                     CreateDefaultWorkspaceToFitViewport();
                     _workspaceInitialized = true;
+                    SetWorkspaceDirty(false);
                 }
 
                 RuntimeLog.Info($"MainWindow loaded. BrowserPaneCount={_browserPanes.Count}; FilePaneCount={_filePanes.Count}; DefaultBrowserUrl='{DefaultBrowserUrl}'; Canvas={WorkspaceCanvas.Width:0}x{WorkspaceCanvas.Height:0}; RuntimeLog='{RuntimeLog.CurrentPath}'");
@@ -70,7 +76,7 @@ public partial class MainWindow : Window
             }
         };
 
-        Closing += (_, _) => ShutdownWorkspace();
+        Closing += MainWindow_Closing;
     }
 
     private void CreateDefaultWorkspaceToFitViewport()
@@ -117,16 +123,16 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void AddBrowserPane(Point? position = null, double width = 620, double height = 420)
+    private BrowserTile? AddBrowserPane(Point? position = null, double width = 620, double height = 420, PaneIdentity? identityOverride = null)
     {
-        var displayIndex = AllocateDisplayIndex(PaneKind.Browser);
+        var displayIndex = identityOverride?.DisplayIndex ?? AllocateDisplayIndex(PaneKind.Browser);
         if (displayIndex is null)
         {
             SetWorkspaceStatus($"Browser pane limit reached ({MaxBrowserPanes}).");
-            return;
+            return null;
         }
 
-        var identity = PaneIdentity.Create(PaneKind.Browser, displayIndex.Value);
+        var identity = identityOverride ?? PaneIdentity.Create(PaneKind.Browser, displayIndex.Value);
         var tile = new BrowserTile();
         tile.Configure(identity, DefaultBrowserUrl);
         tile.SetEndpointIdVisibility(_showEndpointIds);
@@ -153,18 +159,19 @@ public partial class MainWindow : Window
         }
 
         RuntimeLog.Info($"[{identity.Alias}] Browser pane added. PaneId={identity.PaneId:D}; DisplayIndex={identity.DisplayIndex}; Position={FormatPoint(GetPanePosition(tile))}; Size={tile.Width:0}x{tile.Height:0}; Count={_browserPanes.Count}");
+        return tile;
     }
 
-    private void AddFilePane(string? initialPath = null, Point? position = null, double width = 380, double height = 340)
+    private FilePane? AddFilePane(string? initialPath = null, Point? position = null, double width = 380, double height = 340, PaneIdentity? identityOverride = null)
     {
-        var displayIndex = AllocateDisplayIndex(PaneKind.File);
+        var displayIndex = identityOverride?.DisplayIndex ?? AllocateDisplayIndex(PaneKind.File);
         if (displayIndex is null)
         {
             SetWorkspaceStatus($"File pane limit reached ({MaxFilePanes}).");
-            return;
+            return null;
         }
 
-        var identity = PaneIdentity.Create(PaneKind.File, displayIndex.Value);
+        var identity = identityOverride ?? PaneIdentity.Create(PaneKind.File, displayIndex.Value);
         var pane = new FilePane();
         pane.Configure(identity, initialPath ?? GetDefaultFilePath(displayIndex.Value));
         pane.SetEndpointIdVisibility(_showEndpointIds);
@@ -175,6 +182,7 @@ public partial class MainWindow : Window
         pane.MoveCompleted += FilePane_MoveCompleted;
         pane.ResizeRequested += FilePane_ResizeRequested;
         pane.ActivateRequested += FilePane_ActivateRequested;
+        pane.PathChanged += FilePane_PathChanged;
         pane.Width = width;
         pane.Height = height;
 
@@ -190,6 +198,7 @@ public partial class MainWindow : Window
         }
 
         RuntimeLog.Info($"[{identity.Alias}] File pane added. PaneId={identity.PaneId:D}; DisplayIndex={identity.DisplayIndex}; Position={FormatPoint(GetPanePosition(pane))}; Size={pane.Width:0}x{pane.Height:0}; Count={_filePanes.Count}");
+        return pane;
     }
 
     private void BrowserPane_ClosePaneRequested(BrowserTile tile)
@@ -216,6 +225,7 @@ public partial class MainWindow : Window
         {
             ApplyAutoFitLayout();
         }
+        MarkWorkspaceDirty($"Closed {alias}");
         SetWorkspaceStatus($"Closed {alias}. Its display index is now available for reuse.");
     }
 
@@ -238,6 +248,7 @@ public partial class MainWindow : Window
         {
             ApplyAutoFitLayout();
         }
+        MarkWorkspaceDirty($"Closed {alias}");
         SetWorkspaceStatus($"Closed {alias}. Its display index is now available for reuse.");
     }
 
@@ -262,6 +273,7 @@ public partial class MainWindow : Window
         pane.MoveCompleted -= FilePane_MoveCompleted;
         pane.ResizeRequested -= FilePane_ResizeRequested;
         pane.ActivateRequested -= FilePane_ActivateRequested;
+        pane.PathChanged -= FilePane_PathChanged;
     }
 
     private void BrowserPane_StatusChanged(BrowserTile tile, string message)
@@ -269,6 +281,11 @@ public partial class MainWindow : Window
 
     private void FilePane_StatusChanged(FilePane pane, string message)
         => SetWorkspaceStatus($"{pane.Identity.Alias}: {message}");
+
+    private void FilePane_PathChanged(FilePane pane, string path)
+    {
+        MarkWorkspaceDirty($"{pane.Identity.Alias} path changed");
+    }
 
     private void BrowserPane_MoveStarted(BrowserTile tile) => BeginPaneMove(tile);
     private void FilePane_MoveStarted(FilePane pane) => BeginPaneMove(pane);
@@ -340,6 +357,8 @@ public partial class MainWindow : Window
             RuntimeLog.Info($"[{alias}] Pane move completed. PaneId={GetPaneId(pane):D}; Position={FormatPoint(final)}");
             SetWorkspaceStatus($"Moved {alias} to {FormatPoint(final)}.");
         }
+
+        MarkWorkspaceDirty($"Moved {alias}");
     }
 
     private void ResizePane(FrameworkElement pane, PaneResizeDirection direction, double dx, double dy)
@@ -412,6 +431,7 @@ public partial class MainWindow : Window
             browser.FitBrowserToPane();
         }
 
+        MarkWorkspaceDirty($"Resized {GetAlias(pane)}");
         SetWorkspaceStatus($"Resized {GetAlias(pane)} from {direction} to {width:0}×{height:0} at ({left:0},{top:0}).");
     }
 
@@ -438,6 +458,7 @@ public partial class MainWindow : Window
             ApplyAutoFitLayout();
         }
 
+        MarkWorkspaceDirty($"Layout mode changed to {(autoFit ? "Auto Fit" : "Free Layout")}");
         RuntimeLog.Info($"Workspace layout mode changed. Mode={(autoFit ? "AutoFit" : "Free")}; Reason='{reason}'");
         SetWorkspaceStatus(autoFit
             ? "Auto Fit enabled. Panes fill the available Workspace and reflow after add/remove."
@@ -707,13 +728,19 @@ public partial class MainWindow : Window
     private void AddFilePaneButton_Click(object sender, RoutedEventArgs e)
     {
         RestoreMaximizedPaneIfNeeded();
-        AddFilePane();
+        if (AddFilePane() is not null)
+        {
+            MarkWorkspaceDirty("File pane added");
+        }
     }
 
     private void AddBrowserPaneButton_Click(object sender, RoutedEventArgs e)
     {
         RestoreMaximizedPaneIfNeeded();
-        AddBrowserPane();
+        if (AddBrowserPane() is not null)
+        {
+            MarkWorkspaceDirty("Browser pane added");
+        }
     }
 
     private void LayoutModeButton_Click(object sender, RoutedEventArgs e)
@@ -733,12 +760,13 @@ public partial class MainWindow : Window
         }
 
         ShowIdsButton.ToolTip = _showEndpointIds
-            ? "Hide routing endpoint IDs (B1-B8 / F1-F4)"
-            : "Show routing endpoint IDs (B1-B8 / F1-F4)";
+            ? "Hide 64×64 routing endpoint badges (B1-B8 / F1-F4)"
+            : "Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";
+        MarkWorkspaceDirty("Endpoint ID display changed");
         RuntimeLog.Info($"Endpoint ID visibility changed. Visible={_showEndpointIds}; BrowserAliases={string.Join(",", _browserPanes.Select(p => p.Identity.Alias))}; FileAliases={string.Join(",", _filePanes.Select(p => p.Identity.Alias))}");
         SetWorkspaceStatus(_showEndpointIds
-            ? "Routing endpoint aliases are visible. B1-B8 = browser; F1-F4 = file."
-            : "Routing endpoint aliases hidden.");
+            ? "Large 64×64 routing endpoint badges are visible. B1-B8 = browser; F1-F4 = file."
+            : "Large routing endpoint badges hidden; compact endpoint boxes remain visible.");
     }
 
     private void DetachAllButton_Click(object sender, RoutedEventArgs e)
@@ -770,6 +798,445 @@ public partial class MainWindow : Window
     {
         WorkspaceStatusTextBlock.Text = message;
         WorkspaceStatusTextBlock.ToolTip = message;
+    }
+
+    private void NewWorkspaceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfirmReplaceWorkspace())
+        {
+            return;
+        }
+
+        try
+        {
+            _suppressDirtyTracking = true;
+            ClearWorkspacePanes();
+            _currentWorkspacePath = null;
+            _showEndpointIds = false;
+            _autoFitLayout = true;
+            _workspaceInitialized = false;
+            CreateDefaultWorkspaceToFitViewport();
+            _workspaceInitialized = true;
+            LayoutModeGlyph.Text = "▦";
+            LayoutModeButton.ToolTip = "Auto Fit layout is ON. Panes automatically fill the available Workspace. Click for Free Layout.";
+            ShowIdsButton.ToolTip = "Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";
+            SetWorkspaceDirty(false);
+            SetWorkspaceStatus("New Workspace project created. Browser panes launch Google; File paths start from the standard defaults.");
+        }
+        finally
+        {
+            _suppressDirtyTracking = false;
+        }
+    }
+
+    private void OpenWorkspaceButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Open AI Engineering Workspace",
+            Filter = "AI Engineering Workspace (*.aew)|*.aew|JSON files (*.json)|*.json|All files (*.*)|*.*",
+            DefaultExt = WorkspaceProjectService.DefaultExtension,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != true || !ConfirmReplaceWorkspace())
+        {
+            return;
+        }
+
+        try
+        {
+            var project = WorkspaceProjectService.Load(dialog.FileName);
+            ValidateWorkspaceProject(project);
+            ApplyWorkspaceProject(project, dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error($"Workspace project load failed. Path='{dialog.FileName}'", ex);
+            MessageBox.Show(this, $"Unable to open Workspace project.\n\n{ex.Message}", "Open Workspace", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetWorkspaceStatus($"Open Workspace failed: {ex.Message}");
+        }
+    }
+
+    private void SaveWorkspaceButton_Click(object sender, RoutedEventArgs e)
+        => SaveCurrentWorkspace();
+
+    private void SaveWorkspaceAsButton_Click(object sender, RoutedEventArgs e)
+        => SaveCurrentWorkspaceAs();
+
+    private bool SaveCurrentWorkspace()
+    {
+        if (string.IsNullOrWhiteSpace(_currentWorkspacePath))
+        {
+            return SaveCurrentWorkspaceAs();
+        }
+
+        return SaveWorkspaceToPath(_currentWorkspacePath);
+    }
+
+    private bool SaveCurrentWorkspaceAs()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save AI Engineering Workspace",
+            Filter = "AI Engineering Workspace (*.aew)|*.aew|JSON files (*.json)|*.json",
+            DefaultExt = WorkspaceProjectService.DefaultExtension,
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = string.IsNullOrWhiteSpace(_currentWorkspacePath)
+                ? "AI-Engineering-Workspace.aew"
+                : Path.GetFileName(_currentWorkspacePath)
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return false;
+        }
+
+        return SaveWorkspaceToPath(dialog.FileName);
+    }
+
+    private bool SaveWorkspaceToPath(string path)
+    {
+        try
+        {
+            var project = CaptureWorkspaceProject();
+            WorkspaceProjectService.Save(path, project);
+            _currentWorkspacePath = Path.GetFullPath(path);
+            SetWorkspaceDirty(false);
+            RuntimeLog.Info($"Workspace project saved. Path='{_currentWorkspacePath}'; Panes={project.Panes.Count}; Layout={project.LayoutMode}; ShowEndpointIds={project.ShowEndpointIds}");
+            SetWorkspaceStatus($"Workspace saved: {_currentWorkspacePath}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error($"Workspace project save failed. Path='{path}'", ex);
+            MessageBox.Show(this, $"Unable to save Workspace project.\n\n{ex.Message}", "Save Workspace", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetWorkspaceStatus($"Save Workspace failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private WorkspaceProjectDocument CaptureWorkspaceProject()
+    {
+        RestoreMaximizedPaneIfNeeded();
+        var bounds = WindowState == System.Windows.WindowState.Maximized ? RestoreBounds : new Rect(Left, Top, Width, Height);
+        var project = new WorkspaceProjectDocument
+        {
+            ApplicationVersion = AppInfo.DisplayVersion,
+            LayoutMode = _autoFitLayout ? WorkspaceLayoutMode.AutoFit : WorkspaceLayoutMode.FreeLayout,
+            ShowEndpointIds = _showEndpointIds,
+            Window = new WorkspaceWindowState
+            {
+                Width = bounds.Width,
+                Height = bounds.Height,
+                Left = bounds.Left,
+                Top = bounds.Top,
+                Maximized = WindowState == System.Windows.WindowState.Maximized
+            }
+        };
+
+        foreach (var pane in GetAllPanes())
+        {
+            var position = GetPanePosition(pane);
+            var width = double.IsNaN(pane.Width) ? pane.ActualWidth : pane.Width;
+            var height = double.IsNaN(pane.Height) ? pane.ActualHeight : pane.Height;
+            switch (pane)
+            {
+                case FilePane file:
+                    project.Panes.Add(new WorkspacePaneState
+                    {
+                        Kind = PaneKind.File,
+                        PaneId = file.Identity.PaneId,
+                        DisplayIndex = file.Identity.DisplayIndex,
+                        X = position.X,
+                        Y = position.Y,
+                        Width = width,
+                        Height = height,
+                        FilePath = file.CurrentPath
+                    });
+                    break;
+                case BrowserTile browser:
+                    project.Panes.Add(new WorkspacePaneState
+                    {
+                        Kind = PaneKind.Browser,
+                        PaneId = browser.Identity.PaneId,
+                        DisplayIndex = browser.Identity.DisplayIndex,
+                        X = position.X,
+                        Y = position.Y,
+                        Width = width,
+                        Height = height,
+                        FilePath = null
+                    });
+                    break;
+            }
+        }
+
+        project.Panes = project.Panes
+            .OrderBy(pane => pane.Kind)
+            .ThenBy(pane => pane.DisplayIndex)
+            .ToList();
+        return project;
+    }
+
+    private void ApplyWorkspaceProject(WorkspaceProjectDocument project, string sourcePath)
+    {
+        _suppressDirtyTracking = true;
+        try
+        {
+            ClearWorkspacePanes();
+            _workspaceInitialized = false;
+            _showEndpointIds = project.ShowEndpointIds;
+            _autoFitLayout = false; // prevent intermediate reflow while panes are reconstructed
+
+            foreach (var saved in project.Panes.OrderBy(p => p.Kind).ThenBy(p => p.DisplayIndex))
+            {
+                var identity = new PaneIdentity(saved.PaneId == Guid.Empty ? Guid.NewGuid() : saved.PaneId, saved.Kind, saved.DisplayIndex);
+                var position = new Point(Math.Max(0, saved.X), Math.Max(0, saved.Y));
+                if (saved.Kind == PaneKind.File)
+                {
+                    var restoredPath = ResolveSavedFilePath(saved.FilePath, identity.Alias);
+                    AddFilePane(restoredPath, position, Math.Max(380, saved.Width), Math.Max(340, saved.Height), identity);
+                }
+                else
+                {
+                    // Browser navigation/session state is intentionally not persisted. New Firefox windows start at Google.
+                    AddBrowserPane(position, Math.Max(360, saved.Width), Math.Max(260, saved.Height), identity);
+                }
+            }
+
+            _autoFitLayout = project.LayoutMode == WorkspaceLayoutMode.AutoFit;
+            LayoutModeGlyph.Text = _autoFitLayout ? "▦" : "✥";
+            LayoutModeButton.ToolTip = _autoFitLayout
+                ? "Auto Fit layout is ON. Panes automatically fill the available Workspace. Click for Free Layout."
+                : "Free Layout is ON. Panes keep saved/manual positions and sizes. Click for Auto Fit.";
+
+            foreach (var browser in _browserPanes)
+            {
+                browser.SetEndpointIdVisibility(_showEndpointIds);
+            }
+            foreach (var file in _filePanes)
+            {
+                file.SetEndpointIdVisibility(_showEndpointIds);
+            }
+            ShowIdsButton.ToolTip = _showEndpointIds
+                ? "Hide 64×64 routing endpoint badges (B1-B8 / F1-F4)"
+                : "Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";
+
+            if (_autoFitLayout)
+            {
+                ApplyAutoFitLayout();
+            }
+            else
+            {
+                RecalculateCanvasExtentFromPanes();
+            }
+
+            RestoreWindowState(project.Window);
+            _currentWorkspacePath = Path.GetFullPath(sourcePath);
+            _workspaceInitialized = true;
+            SetWorkspaceDirty(false);
+            UpdatePaneCounts();
+            RuntimeLog.Info($"Workspace project loaded. Path='{_currentWorkspacePath}'; Panes={project.Panes.Count}; Layout={project.LayoutMode}; ShowEndpointIds={project.ShowEndpointIds}");
+            SetWorkspaceStatus($"Workspace loaded: {_currentWorkspacePath}");
+        }
+        finally
+        {
+            _suppressDirtyTracking = false;
+        }
+    }
+
+    private static void ValidateWorkspaceProject(WorkspaceProjectDocument project)
+    {
+        var browserCount = project.Panes.Count(p => p.Kind == PaneKind.Browser);
+        var fileCount = project.Panes.Count(p => p.Kind == PaneKind.File);
+        if (browserCount > MaxBrowserPanes || fileCount > MaxFilePanes)
+        {
+            throw new InvalidDataException($"Workspace contains too many panes. Browser={browserCount}/{MaxBrowserPanes}, File={fileCount}/{MaxFilePanes}.");
+        }
+
+        var duplicateAlias = project.Panes
+            .GroupBy(p => (p.Kind, p.DisplayIndex))
+            .FirstOrDefault(g => g.Count() > 1);
+        if (duplicateAlias is not null)
+        {
+            throw new InvalidDataException($"Duplicate endpoint display index: {duplicateAlias.Key.Kind} {duplicateAlias.Key.DisplayIndex}.");
+        }
+
+        var duplicatePaneId = project.Panes.Where(p => p.PaneId != Guid.Empty).GroupBy(p => p.PaneId).FirstOrDefault(g => g.Count() > 1);
+        if (duplicatePaneId is not null)
+        {
+            throw new InvalidDataException($"Duplicate PaneId: {duplicatePaneId.Key:D}.");
+        }
+
+        foreach (var pane in project.Panes)
+        {
+            var max = pane.Kind == PaneKind.Browser ? MaxBrowserPanes : MaxFilePanes;
+            if (pane.DisplayIndex < 1 || pane.DisplayIndex > max)
+            {
+                throw new InvalidDataException($"Invalid {pane.Kind} display index {pane.DisplayIndex}. Allowed range is 1-{max}.");
+            }
+            if (!double.IsFinite(pane.X) || !double.IsFinite(pane.Y) || !double.IsFinite(pane.Width) || !double.IsFinite(pane.Height))
+            {
+                throw new InvalidDataException($"Pane {pane.Kind}{pane.DisplayIndex} contains non-finite geometry.");
+            }
+        }
+    }
+
+    private string ResolveSavedFilePath(string? savedPath, string alias)
+    {
+        if (!string.IsNullOrWhiteSpace(savedPath))
+        {
+            try
+            {
+                var fullPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(savedPath));
+                if (Directory.Exists(fullPath))
+                {
+                    return fullPath;
+                }
+                RuntimeLog.Warn($"[{alias}] Saved File path is unavailable. Path='{fullPath}'. Falling back to Desktop.");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn($"[{alias}] Saved File path is invalid. Path='{savedPath}'; Error={ex.Message}. Falling back to Desktop.");
+            }
+        }
+
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        return Directory.Exists(desktop) ? desktop : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    }
+
+    private void RestoreWindowState(WorkspaceWindowState saved)
+    {
+        if (saved.Width >= MinWidth && saved.Height >= MinHeight && double.IsFinite(saved.Width) && double.IsFinite(saved.Height))
+        {
+            WindowState = System.Windows.WindowState.Normal;
+            Width = saved.Width;
+            Height = saved.Height;
+            if (double.IsFinite(saved.Left) && double.IsFinite(saved.Top))
+            {
+                Left = saved.Left;
+                Top = saved.Top;
+            }
+        }
+
+        if (saved.Maximized)
+        {
+            WindowState = System.Windows.WindowState.Maximized;
+        }
+    }
+
+    private void RecalculateCanvasExtentFromPanes()
+    {
+        var panes = GetAllPanes().ToList();
+        if (panes.Count == 0)
+        {
+            WorkspaceCanvas.Width = Math.Max(900, WorkspaceScrollViewer.ViewportWidth);
+            WorkspaceCanvas.Height = Math.Max(560, WorkspaceScrollViewer.ViewportHeight);
+            return;
+        }
+
+        WorkspaceCanvas.Width = Math.Max(
+            Math.Max(900, WorkspaceScrollViewer.ViewportWidth),
+            panes.Max(p => GetPaneRect(p).Right + PaneGap));
+        WorkspaceCanvas.Height = Math.Max(
+            Math.Max(560, WorkspaceScrollViewer.ViewportHeight),
+            panes.Max(p => GetPaneRect(p).Bottom + PaneGap));
+    }
+
+    private void ClearWorkspacePanes()
+    {
+        _maximizedPane = null;
+        foreach (var tile in _browserPanes.ToArray())
+        {
+            tile.Shutdown();
+            UnsubscribeBrowserPane(tile);
+            WorkspaceCanvas.Children.Remove(tile);
+        }
+        foreach (var pane in _filePanes.ToArray())
+        {
+            UnsubscribeFilePane(pane);
+            WorkspaceCanvas.Children.Remove(pane);
+        }
+
+        _browserPanes.Clear();
+        _filePanes.Clear();
+        _moveOrigins.Clear();
+        WorkspaceCanvas.Children.Clear();
+        WorkspaceCanvas.Width = 1200;
+        WorkspaceCanvas.Height = 700;
+        WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+        WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+        UpdatePaneCounts();
+    }
+
+    private bool ConfirmReplaceWorkspace()
+    {
+        if (!_workspaceDirty)
+        {
+            return true;
+        }
+
+        var result = MessageBox.Show(
+            this,
+            "The current Workspace has unsaved layout/path changes. Save them first?",
+            "AI Engineering Workspace",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        return result switch
+        {
+            MessageBoxResult.Yes => SaveCurrentWorkspace(),
+            MessageBoxResult.No => true,
+            _ => false
+        };
+    }
+
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        if (!ConfirmReplaceWorkspace())
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        ShutdownWorkspace();
+    }
+
+    private void MarkWorkspaceDirty(string reason)
+    {
+        if (_suppressDirtyTracking || !_workspaceInitialized)
+        {
+            return;
+        }
+
+        if (!_workspaceDirty)
+        {
+            _workspaceDirty = true;
+            UpdateWindowTitle();
+            RuntimeLog.Debug($"Workspace marked dirty. Reason='{reason}'");
+        }
+    }
+
+    private void SetWorkspaceDirty(bool dirty)
+    {
+        _workspaceDirty = dirty;
+        UpdateWindowTitle();
+    }
+
+    private void UpdateWindowTitle()
+    {
+        var projectName = string.IsNullOrWhiteSpace(_currentWorkspacePath)
+            ? "Untitled Workspace"
+            : Path.GetFileNameWithoutExtension(_currentWorkspacePath);
+        var dirtyMarker = _workspaceDirty ? " *" : string.Empty;
+        Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion} — {projectName}{dirtyMarker}";
     }
 
     private void ShutdownWorkspace()

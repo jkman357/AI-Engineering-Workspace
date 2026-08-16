@@ -9,6 +9,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\AIEngineeringWorkspace.App\Workspace\AutoFitLayoutPlanner.cs" Link="UnderTest\AutoFitLayoutPlanner.cs" />
+    <Compile Include="..\..\src\AIEngineeringWorkspace.App\Workspace\PaneIdentity.cs" Link="UnderTest\PaneIdentity.cs" />
+    <Compile Include="..\..\src\AIEngineeringWorkspace.App\Workspace\WorkspaceProjectModels.cs" Link="UnderTest\WorkspaceProjectModels.cs" />
+    <Compile Include="..\..\src\AIEngineeringWorkspace.App\Workspace\WorkspaceProjectService.cs" Link="UnderTest\WorkspaceProjectService.cs" />
     <Compile Include="..\..\src\AIEngineeringWorkspace.App\FileManager\GitModels.cs" Link="UnderTest\GitModels.cs" />
     <Compile Include="..\..\src\AIEngineeringWorkspace.App\FileManager\GitPorcelainParser.cs" Link="UnderTest\GitPorcelainParser.cs" />
   </ItemGroup>
