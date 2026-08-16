@@ -1,9 +1,7 @@
+bin/
+obj/
 .vs/
-.idea/
-**/bin/
-**/obj/
+logs/
 *.user
 *.suo
-logs/build/*.log
-logs/runtime/*.log
-logs/test/*.log
+*.zip

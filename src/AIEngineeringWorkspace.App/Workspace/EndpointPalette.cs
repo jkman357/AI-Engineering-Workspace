@@ -31,10 +31,7 @@ internal static class EndpointPalette
         var palette = kind == PaneKind.Browser ? BrowserColors : FileColors;
         var index = Math.Clamp(displayIndex - 1, 0, palette.Length - 1);
         var item = palette[index];
-        return new EndpointBadgeStyle(
-            CreateBrush(item.Background),
-            CreateBrush(item.Border),
-            CreateBrush(item.Foreground));
+        return new EndpointBadgeStyle(CreateBrush(item.Background), CreateBrush(item.Border), CreateBrush(item.Foreground));
     }
 
     private static Brush CreateBrush(string hex)

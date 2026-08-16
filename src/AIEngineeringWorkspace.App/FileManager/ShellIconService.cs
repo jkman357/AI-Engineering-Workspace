@@ -17,21 +17,12 @@ internal static class ShellIconService
         public IntPtr hIcon;
         public int iIcon;
         public uint dwAttributes;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-        public string szDisplayName;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
-        public string szTypeName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)] public string szTypeName;
     }
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SHGetFileInfo(
-        string pszPath,
-        uint dwFileAttributes,
-        out ShFileInfo psfi,
-        uint cbFileInfo,
-        uint uFlags);
+    private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, out ShFileInfo psfi, uint cbFileInfo, uint uFlags);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -41,24 +32,11 @@ internal static class ShellIconService
     {
         try
         {
-            var result = SHGetFileInfo(
-                path,
-                0,
-                out var info,
-                (uint)Marshal.SizeOf<ShFileInfo>(),
-                ShgfiIcon | ShgfiSmallIcon);
-
-            if (result == IntPtr.Zero || info.hIcon == IntPtr.Zero)
-            {
-                return null;
-            }
-
+            var result = SHGetFileInfo(path, 0, out var info, (uint)Marshal.SizeOf<ShFileInfo>(), ShgfiIcon | ShgfiSmallIcon);
+            if (result == IntPtr.Zero || info.hIcon == IntPtr.Zero) return null;
             try
             {
-                var source = Imaging.CreateBitmapSourceFromHIcon(
-                    info.hIcon,
-                    Int32Rect.Empty,
-                    BitmapSizeOptions.FromEmptyOptions());
+                var source = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
                 source.Freeze();
                 return source;
             }

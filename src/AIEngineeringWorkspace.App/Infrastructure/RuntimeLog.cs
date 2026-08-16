@@ -32,27 +32,17 @@ internal static class RuntimeLog
     {
         lock (Sync)
         {
-            if (_initialized)
-            {
-                return;
-            }
-
+            if (_initialized) return;
             _initialized = true;
             _enabled = ReadEnabled();
             _retentionDays = ReadIntEnvironment("AIEW_LOG_RETENTION_DAYS", DefaultRetentionDays, 1, 3650);
             _maxFiles = ReadIntEnvironment("AIEW_LOG_MAX_FILES", DefaultMaxFiles, 1, 1000);
             var maxFileMb = ReadIntEnvironment("AIEW_LOG_MAX_MB", DefaultMaxFileMb, 1, 1024);
             _maxFileBytes = maxFileMb * 1024L * 1024L;
-
-            if (!_enabled)
-            {
-                return;
-            }
-
+            if (!_enabled) return;
             _logDirectory = ResolveLogDirectory();
             Directory.CreateDirectory(_logDirectory);
             CleanupOldLogs(_logDirectory);
-
             _sessionStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
             _part = 0;
             OpenWriter();
@@ -80,26 +70,10 @@ internal static class RuntimeLog
     {
         lock (Sync)
         {
-            if (!_initialized)
-            {
-                Initialize();
-            }
-
-            if (!_enabled)
-            {
-                return;
-            }
-
-            if (_writer is null)
-            {
-                OpenWriter();
-            }
-
-            if (_writer is not null && _writer.BaseStream.Length >= _maxFileBytes)
-            {
-                RotateWriter();
-            }
-
+            if (!_initialized) Initialize();
+            if (!_enabled) return;
+            if (_writer is null) OpenWriter();
+            if (_writer is not null && _writer.BaseStream.Length >= _maxFileBytes) RotateWriter();
             WriteUnlocked(level, message);
         }
     }
@@ -123,30 +97,18 @@ internal static class RuntimeLog
 
     private static void OpenWriter()
     {
-        if (!_enabled)
-        {
-            return;
-        }
-
+        if (!_enabled) return;
         _logDirectory ??= ResolveLogDirectory();
         Directory.CreateDirectory(_logDirectory);
         _sessionStamp ??= DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
-
         var suffix = _part == 0 ? string.Empty : $"_part{_part:D2}";
         _path = Path.Combine(_logDirectory, $"AIEngineeringWorkspace_{_sessionStamp}{suffix}.log");
-        _writer = new StreamWriter(new FileStream(_path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new UTF8Encoding(false))
-        {
-            AutoFlush = true
-        };
+        _writer = new StreamWriter(new FileStream(_path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new UTF8Encoding(false)) { AutoFlush = true };
     }
 
     private static string RedactSensitiveText(string text)
     {
-        if (string.IsNullOrEmpty(text))
-        {
-            return text;
-        }
-
+        if (string.IsNullOrEmpty(text)) return text;
         var redacted = BearerRegex.Replace(text, "Bearer [REDACTED]");
         redacted = SensitivePairRegex.Replace(redacted, match => $"{match.Groups[1].Value}{match.Groups[2].Value}[REDACTED]");
         redacted = SensitiveQueryRegex.Replace(redacted, match => $"{match.Groups[1].Value}[REDACTED]");
@@ -173,11 +135,7 @@ internal static class RuntimeLog
     private static string ResolveLogDirectory()
     {
         var repositoryRoot = FindRepositoryRoot();
-        if (!string.IsNullOrWhiteSpace(repositoryRoot))
-        {
-            return Path.Combine(repositoryRoot, "logs", "runtime");
-        }
-
+        if (!string.IsNullOrWhiteSpace(repositoryRoot)) return Path.Combine(repositoryRoot, "logs", "runtime");
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return Path.Combine(localAppData, "AIEngineeringWorkspace", "logs", "runtime");
     }
@@ -186,65 +144,31 @@ internal static class RuntimeLog
     {
         try
         {
-            var files = new DirectoryInfo(directory)
-                .EnumerateFiles("AIEngineeringWorkspace_*.log", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .ToList();
-
+            var files = new DirectoryInfo(directory).EnumerateFiles("AIEngineeringWorkspace_*.log", SearchOption.TopDirectoryOnly).OrderByDescending(file => file.LastWriteTimeUtc).ToList();
             var cutoff = DateTime.UtcNow.AddDays(-_retentionDays);
-            foreach (var file in files.Where(file => file.LastWriteTimeUtc < cutoff))
-            {
-                TryDelete(file);
-            }
-
-            files = new DirectoryInfo(directory)
-                .EnumerateFiles("AIEngineeringWorkspace_*.log", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .ToList();
-
-            foreach (var file in files.Skip(_maxFiles))
-            {
-                TryDelete(file);
-            }
+            foreach (var file in files.Where(file => file.LastWriteTimeUtc < cutoff)) TryDelete(file);
+            files = new DirectoryInfo(directory).EnumerateFiles("AIEngineeringWorkspace_*.log", SearchOption.TopDirectoryOnly).OrderByDescending(file => file.LastWriteTimeUtc).ToList();
+            foreach (var file in files.Skip(_maxFiles)) TryDelete(file);
         }
-        catch
-        {
-            // Logging cleanup must never prevent application startup.
-        }
+        catch { }
     }
 
     private static void TryDelete(FileInfo file)
     {
-        try
-        {
-            file.Delete();
-        }
-        catch
-        {
-            // Best-effort retention cleanup only.
-        }
+        try { file.Delete(); } catch { }
     }
 
     private static string? FindRepositoryRoot()
     {
-        var candidates = new[]
-        {
-            Directory.GetCurrentDirectory(),
-            AppContext.BaseDirectory
-        };
-
+        var candidates = new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory };
         foreach (var start in candidates)
         {
             var dir = new DirectoryInfo(start);
             for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent)
             {
-                if (File.Exists(Path.Combine(dir.FullName, "AI-Engineering-Workspace.sln")))
-                {
-                    return dir.FullName;
-                }
+                if (File.Exists(Path.Combine(dir.FullName, "AI-Engineering-Workspace.sln"))) return dir.FullName;
             }
         }
-
         return null;
     }
 }

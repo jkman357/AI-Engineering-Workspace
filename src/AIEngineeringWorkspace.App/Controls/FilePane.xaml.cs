@@ -16,7 +16,6 @@ public partial class FilePane : UserControl
     private const string PreferredDropEffectFormat = "Preferred DropEffect";
     private const int DropEffectCopy = 1;
     private const int DropEffectMove = 2;
-
     private readonly List<FileEntry> _entries = new();
     private Point _dragStartPoint;
     private string _currentPath = string.Empty;
@@ -42,12 +41,7 @@ public partial class FilePane : UserControl
     public FilePane()
     {
         InitializeComponent();
-        Unloaded += (_, _) =>
-        {
-            _gitProbeCts?.Cancel();
-            _gitProbeCts?.Dispose();
-            _gitProbeCts = null;
-        };
+        Unloaded += (_, _) => { _gitProbeCts?.Cancel(); _gitProbeCts?.Dispose(); _gitProbeCts = null; };
     }
 
     internal void Configure(PaneIdentity identity, string initialPath)
@@ -57,21 +51,16 @@ public partial class FilePane : UserControl
         EndpointBadgeTextBlock.Text = identity.Alias;
         EndpointLargeBadgeTextBlock.Text = identity.Alias;
         EndpointBadgeBorder.ToolTip = $"Routing endpoint {identity.Alias}\nPaneId={identity.PaneId:D}";
-        var badgeStyle = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
-        EndpointBadgeBorder.Background = badgeStyle.Background;
-        EndpointBadgeBorder.BorderBrush = badgeStyle.Border;
-        EndpointBadgeTextBlock.Foreground = badgeStyle.Foreground;
-        EndpointLargeBadgeBorder.Background = badgeStyle.Background;
-        EndpointLargeBadgeBorder.BorderBrush = badgeStyle.Border;
-        EndpointLargeBadgeTextBlock.Foreground = badgeStyle.Foreground;
+        var style = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
+        EndpointBadgeBorder.Background = style.Background; EndpointBadgeBorder.BorderBrush = style.Border; EndpointBadgeTextBlock.Foreground = style.Foreground;
+        EndpointLargeBadgeBorder.Background = style.Background; EndpointLargeBadgeBorder.BorderBrush = style.Border; EndpointLargeBadgeTextBlock.Foreground = style.Foreground;
         NavigateTo(initialPath);
-        RuntimeLog.Info($"[{Identity.Alias}] File pane configured. PaneId={Identity.PaneId:D}; DisplayIndex={Identity.DisplayIndex}; InitialPath='{initialPath}'");
     }
 
     internal void SetEndpointIdVisibility(bool visible)
     {
         EndpointLargeBadgeBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        PaneFrameBorder.BorderBrush = visible ? EndpointBadgeBorder.BorderBrush : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A));
+        PaneFrameBorder.BorderBrush = visible ? EndpointBadgeBorder.BorderBrush : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A,0x8A,0x8A));
         PaneFrameBorder.BorderThickness = visible ? new Thickness(3) : new Thickness(1);
     }
 
@@ -80,727 +69,170 @@ public partial class FilePane : UserControl
         try
         {
             var path = Environment.ExpandEnvironmentVariables((requestedPath ?? string.Empty).Trim().Trim('"'));
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            }
-
+            if (string.IsNullOrWhiteSpace(path)) path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             path = Path.GetFullPath(path);
-            if (!Directory.Exists(path))
-            {
-                SetStatus($"Folder not found: {path}");
-                return;
-            }
+            if (!Directory.Exists(path)) { SetStatus($"Folder not found: {path}"); return; }
 
-            _gitProbeCts?.Cancel();
-            _gitProbeCts?.Dispose();
-            _gitProbeCts = new CancellationTokenSource();
+            _gitProbeCts?.Cancel(); _gitProbeCts?.Dispose(); _gitProbeCts = new CancellationTokenSource();
             var generation = ++_navigationGeneration;
-
             var entries = new List<FileEntry>();
             foreach (var directory in Directory.EnumerateDirectories(path))
             {
                 try
                 {
                     var info = new DirectoryInfo(directory);
-                    entries.Add(new FileEntry
-                    {
-                        Name = info.Name,
-                        FullPath = info.FullName,
-                        IsDirectory = true,
-                        Type = "Folder",
-                        SizeText = string.Empty,
-                        SizeBytes = -1,
-                        ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
-                        ModifiedTime = info.LastWriteTime,
-                        Icon = ShellIconService.GetSmallIcon(info.FullName)
-                    });
+                    entries.Add(new FileEntry { Name=info.Name, FullPath=info.FullName, IsDirectory=true, Type="Folder", SizeText="", SizeBytes=-1, ModifiedText=info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"), ModifiedTime=info.LastWriteTime, Icon=ShellIconService.GetSmallIcon(info.FullName) });
                 }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Debug($"[{Identity.Alias}] Skipping directory '{directory}': {ex.Message}");
-                }
+                catch { }
             }
-
             foreach (var file in Directory.EnumerateFiles(path))
             {
                 try
                 {
                     var info = new FileInfo(file);
-                    entries.Add(new FileEntry
-                    {
-                        Name = info.Name,
-                        FullPath = info.FullName,
-                        IsDirectory = false,
-                        Type = string.IsNullOrWhiteSpace(info.Extension) ? "File" : info.Extension.TrimStart('.').ToUpperInvariant(),
-                        SizeText = FormatSize(info.Length),
-                        SizeBytes = info.Length,
-                        ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
-                        ModifiedTime = info.LastWriteTime,
-                        Icon = ShellIconService.GetSmallIcon(info.FullName)
-                    });
+                    entries.Add(new FileEntry { Name=info.Name, FullPath=info.FullName, IsDirectory=false, Type=string.IsNullOrWhiteSpace(info.Extension)?"File":info.Extension.TrimStart('.').ToUpperInvariant(), SizeText=FormatSize(info.Length), SizeBytes=info.Length, ModifiedText=info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"), ModifiedTime=info.LastWriteTime, Icon=ShellIconService.GetSmallIcon(info.FullName) });
                 }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Debug($"[{Identity.Alias}] Skipping file '{file}': {ex.Message}");
-                }
+                catch { }
             }
 
-            var pathChanged = !string.Equals(_currentPath, path, StringComparison.OrdinalIgnoreCase);
-            _currentPath = path;
-            PathTextBox.Text = path;
-            _entries.Clear();
-            _entries.AddRange(entries);
-            ApplySort(false);
-
-            SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s) | Git: scanning…");
-            RuntimeLog.Info($"[{Identity.Alias}] Folder loaded without blocking Git probe. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}; Generation={generation}");
+            var changed = !string.Equals(_currentPath, path, StringComparison.OrdinalIgnoreCase);
+            _currentPath = path; PathTextBox.Text = path; _entries.Clear(); _entries.AddRange(entries); ApplySort(false);
+            SetStatus($"{entries.Count(x=>x.IsDirectory)} folder(s), {entries.Count(x=>!x.IsDirectory)} file(s) | Git: scanning…");
             _ = RefreshGitDecorationsAsync(path, generation, _gitProbeCts.Token);
-            if (pathChanged)
-            {
-                PathChanged?.Invoke(this, path);
-            }
+            if (changed) PathChanged?.Invoke(this, path);
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            RuntimeLog.Warn($"[{Identity.Alias}] Access denied. Path='{requestedPath}'; Error={ex.Message}");
-            SetStatus("Access denied.");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] Failed to load folder '{requestedPath}'.", ex);
-            SetStatus($"Unable to load folder: {ex.Message}");
-        }
+        catch (UnauthorizedAccessException) { SetStatus("Access denied."); }
+        catch (Exception ex) { RuntimeLog.Error($"[{Identity.Alias}] Failed to load folder '{requestedPath}'.", ex); SetStatus($"Unable to load folder: {ex.Message}"); }
     }
 
-    private async Task RefreshGitDecorationsAsync(string path, int generation, CancellationToken cancellationToken)
+    private async Task RefreshGitDecorationsAsync(string path, int generation, CancellationToken token)
     {
         try
         {
-            var targets = _entries.Select(item => new GitTarget(item.FullPath, item.IsDirectory)).ToArray();
+            var targets = _entries.Select(x => (x.FullPath, x.IsDirectory)).ToArray();
             var result = await Task.Run(() =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var snapshot = GitStatusService.TryReadFolder(path, cancellationToken);
-                var decorations = new Dictionary<string, GitDecoration>(StringComparer.OrdinalIgnoreCase);
-                foreach (var target in targets)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    decorations[target.FullPath] = GitStatusService.GetDecoration(snapshot, target.FullPath, target.IsDirectory, cancellationToken);
-                }
-                return new GitDecorationRefresh(snapshot, decorations);
-            }, cancellationToken);
-
-            if (cancellationToken.IsCancellationRequested || generation != _navigationGeneration || !string.Equals(path, _currentPath, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
+                var snapshot = GitStatusService.TryReadFolder(path, token);
+                var d = new Dictionary<string, GitDecoration>(StringComparer.OrdinalIgnoreCase);
+                foreach (var t in targets) { token.ThrowIfCancellationRequested(); d[t.FullPath] = GitStatusService.GetDecoration(snapshot, t.FullPath, t.IsDirectory, token); }
+                return (snapshot, d);
+            }, token);
+            if (token.IsCancellationRequested || generation != _navigationGeneration || !string.Equals(path,_currentPath,StringComparison.OrdinalIgnoreCase)) return;
             await Dispatcher.InvokeAsync(() =>
             {
-                if (generation != _navigationGeneration || !string.Equals(path, _currentPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                foreach (var entry in _entries)
-                {
-                    if (result.Decorations.TryGetValue(entry.FullPath, out var decoration))
-                    {
-                        entry.GitGlyph = decoration.Glyph;
-                        entry.GitTooltip = decoration.Tooltip;
-                    }
-                }
-
+                foreach (var entry in _entries) if (result.d.TryGetValue(entry.FullPath, out var deco)) { entry.GitGlyph=deco.Glyph; entry.GitTooltip=deco.Tooltip; }
                 ApplySort(false);
-                var gitSuffix = result.Snapshot.IsRepository ? $" | Git: {Path.GetFileName(result.Snapshot.RepositoryRoot)}" : string.Empty;
-                SetStatus($"{_entries.Count(item => item.IsDirectory)} folder(s), {_entries.Count(item => !item.IsDirectory)} file(s){gitSuffix}");
-                RuntimeLog.Info($"[{Identity.Alias}] Git decorations applied asynchronously. Path='{path}'; Generation={generation}; GitRepository={result.Snapshot.IsRepository}; GitRoot='{result.Snapshot.RepositoryRoot}'");
+                var suffix = result.snapshot.IsRepository ? $" | Git: {Path.GetFileName(result.snapshot.RepositoryRoot)}" : string.Empty;
+                SetStatus($"{_entries.Count(x=>x.IsDirectory)} folder(s), {_entries.Count(x=>!x.IsDirectory)} file(s){suffix}");
             });
         }
-        catch (OperationCanceledException)
-        {
-            RuntimeLog.Debug($"[{Identity.Alias}] Git decoration scan canceled. Path='{path}'; Generation={generation}");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Warn($"[{Identity.Alias}] Background Git decoration failed for '{path}': {ex.Message}");
-            if (generation == _navigationGeneration)
-            {
-                await Dispatcher.InvokeAsync(() => SetStatus($"{_entries.Count(item => item.IsDirectory)} folder(s), {_entries.Count(item => !item.IsDirectory)} file(s) | Git unavailable"));
-            }
-        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { RuntimeLog.Warn($"[{Identity.Alias}] Background Git decoration failed: {ex.Message}"); }
     }
-
-    private readonly record struct GitTarget(string FullPath, bool IsDirectory);
-    private readonly record struct GitDecorationRefresh(GitFolderSnapshot Snapshot, IReadOnlyDictionary<string, GitDecoration> Decorations);
 
     private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not GridViewColumnHeader header || header.Tag is not string column)
-        {
-            return;
-        }
-
-        if (string.Equals(_sortColumn, column, StringComparison.OrdinalIgnoreCase))
-        {
-            _sortAscending = !_sortAscending;
-        }
-        else
-        {
-            _sortColumn = column;
-            _sortAscending = true;
-        }
-
+        if (sender is not GridViewColumnHeader h || h.Tag is not string c) return;
+        if (string.Equals(_sortColumn,c,StringComparison.OrdinalIgnoreCase)) _sortAscending=!_sortAscending; else { _sortColumn=c; _sortAscending=true; }
         ApplySort(true);
     }
 
     private void ApplySort(bool updateStatus)
     {
-        IOrderedEnumerable<FileEntry> ordered = _entries.OrderByDescending(item => item.IsDirectory);
-
+        IOrderedEnumerable<FileEntry> ordered = _entries.OrderByDescending(x=>x.IsDirectory);
         ordered = _sortColumn switch
         {
-            "Type" => _sortAscending
-                ? ordered.ThenBy(item => item.Type, StringComparer.CurrentCultureIgnoreCase).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                : ordered.ThenByDescending(item => item.Type, StringComparer.CurrentCultureIgnoreCase).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
-            "Size" => _sortAscending
-                ? ordered.ThenBy(item => item.SizeBytes).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                : ordered.ThenByDescending(item => item.SizeBytes).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
-            "Modified" => _sortAscending
-                ? ordered.ThenBy(item => item.ModifiedTime).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                : ordered.ThenByDescending(item => item.ModifiedTime).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
-            _ => _sortAscending
-                ? ordered.ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                : ordered.ThenByDescending(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+            "Type" => _sortAscending ? ordered.ThenBy(x=>x.Type,StringComparer.CurrentCultureIgnoreCase).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase) : ordered.ThenByDescending(x=>x.Type,StringComparer.CurrentCultureIgnoreCase).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase),
+            "Size" => _sortAscending ? ordered.ThenBy(x=>x.SizeBytes).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase) : ordered.ThenByDescending(x=>x.SizeBytes).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase),
+            "Modified" => _sortAscending ? ordered.ThenBy(x=>x.ModifiedTime).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase) : ordered.ThenByDescending(x=>x.ModifiedTime).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase),
+            _ => _sortAscending ? ordered.ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase) : ordered.ThenByDescending(x=>x.Name,StringComparer.CurrentCultureIgnoreCase)
         };
-
         FileListView.ItemsSource = ordered.ToList();
-        UpdateSortHeaders();
-
-        if (updateStatus)
-        {
-            var direction = _sortAscending ? "ascending" : "descending";
-            SetStatus($"Sorted by {_sortColumn} ({direction}).");
-            RuntimeLog.Info($"[{Identity.Alias}] File list sorted. Column={_sortColumn}; Ascending={_sortAscending}; Path='{_currentPath}'");
-        }
+        SetSortHeader(NameColumnHeader,"Name"); SetSortHeader(TypeColumnHeader,"Type"); SetSortHeader(SizeColumnHeader,"Size"); SetSortHeader(ModifiedColumnHeader,"Modified");
+        if (updateStatus) SetStatus($"Sorted by {_sortColumn} ({(_sortAscending?"ascending":"descending")}).");
     }
+    private void SetSortHeader(GridViewColumnHeader h,string c) => h.Content = string.Equals(_sortColumn,c,StringComparison.OrdinalIgnoreCase) ? $"{c} {(_sortAscending?"↑":"↓")}" : c;
 
-    private void UpdateSortHeaders()
-    {
-        SetSortHeader(NameColumnHeader, "Name");
-        SetSortHeader(TypeColumnHeader, "Type");
-        SetSortHeader(SizeColumnHeader, "Size");
-        SetSortHeader(ModifiedColumnHeader, "Modified");
-    }
-
-    private void SetSortHeader(GridViewColumnHeader header, string column)
-    {
-        header.Content = string.Equals(_sortColumn, column, StringComparison.OrdinalIgnoreCase)
-            ? $"{column} {(_sortAscending ? "↑" : "↓")}"
-            : column;
-    }
-
-    private void GoButton_Click(object sender, RoutedEventArgs e) => NavigateTo(PathTextBox.Text);
-
-    private void RefreshButton_Click(object sender, RoutedEventArgs e) => NavigateTo(_currentPath);
-
-    private void UpButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(_currentPath))
-        {
-            return;
-        }
-
-        var parent = Directory.GetParent(_currentPath);
-        if (parent is null)
-        {
-            SetStatus("Already at the drive root.");
-            return;
-        }
-
-        NavigateTo(parent.FullName);
-    }
-
-    private void ClosePaneButton_Click(object sender, RoutedEventArgs e)
-    {
-        RuntimeLog.Info($"[{Identity.Alias}] File pane X clicked. PaneId={Identity.PaneId:D}; Path='{_currentPath}'");
-        ClosePaneRequested?.Invoke(this);
-    }
-
-    private void PathTextBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            NavigateTo(PathTextBox.Text);
-            e.Handled = true;
-        }
-    }
-
-    private void FileListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (FileListView.SelectedItem is FileEntry entry)
-        {
-            OpenEntry(entry);
-        }
-    }
+    private void GoButton_Click(object s,RoutedEventArgs e)=>NavigateTo(PathTextBox.Text);
+    private void RefreshButton_Click(object s,RoutedEventArgs e)=>NavigateTo(_currentPath);
+    private void UpButton_Click(object s,RoutedEventArgs e) { var p=string.IsNullOrWhiteSpace(_currentPath)?null:Directory.GetParent(_currentPath); if(p is null) SetStatus("Already at the drive root."); else NavigateTo(p.FullName); }
+    private void ClosePaneButton_Click(object s,RoutedEventArgs e)=>ClosePaneRequested?.Invoke(this);
+    private void PathTextBox_KeyDown(object s,KeyEventArgs e){ if(e.Key==Key.Enter){NavigateTo(PathTextBox.Text);e.Handled=true;} }
+    private void FileListView_MouseDoubleClick(object s,MouseButtonEventArgs e){ if(FileListView.SelectedItem is FileEntry x) OpenEntry(x); }
 
     private void OpenEntry(FileEntry entry)
     {
-        try
-        {
-            if (entry.IsDirectory)
-            {
-                NavigateTo(entry.FullPath);
-                return;
-            }
-
-            if (!File.Exists(entry.FullPath))
-            {
-                SetStatus("The selected file no longer exists.");
-                return;
-            }
-
-            Process.Start(new ProcessStartInfo(entry.FullPath) { UseShellExecute = true });
-            RuntimeLog.Info($"[{Identity.Alias}] Shell open requested. Path='{entry.FullPath}'");
-            SetStatus($"Opened: {entry.Name}");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] Shell open failed. Path='{entry.FullPath}'", ex);
-            SetStatus($"Open failed: {ex.Message}");
-        }
+        try { if(entry.IsDirectory){NavigateTo(entry.FullPath);return;} Process.Start(new ProcessStartInfo(entry.FullPath){UseShellExecute=true}); SetStatus($"Opened: {entry.Name}"); }
+        catch(Exception ex){SetStatus($"Open failed: {ex.Message}");}
     }
 
-    private void FileListView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void FileListView_PreviewMouseLeftButtonDown(object s,MouseButtonEventArgs e){ActivateRequested?.Invoke(this);_dragStartPoint=e.GetPosition(FileListView);}
+    private void FileListView_PreviewMouseRightButtonDown(object s,MouseButtonEventArgs e){ActivateRequested?.Invoke(this);var item=ItemsControl.ContainerFromElement(FileListView,e.OriginalSource as DependencyObject) as ListViewItem;if(item is not null){item.IsSelected=true;item.Focus();}else FileListView.SelectedItem=null;}
+    private void FileListView_PreviewMouseRightButtonUp(object s,MouseButtonEventArgs e)
     {
-        ActivateRequested?.Invoke(this);
-        _dragStartPoint = e.GetPosition(FileListView);
+        var owner=Window.GetWindow(this); if(owner is null)return;
+        var target=FileListView.SelectedItem is FileEntry x?x.FullPath:_currentPath; var pt=FileListView.PointToScreen(e.GetPosition(FileListView));
+        if(!ShellContextMenuService.Show(owner,target,pt,out var error))SetStatus($"Windows Shell menu unavailable: {error}"); else {SetStatus($"Windows Shell menu: {Path.GetFileName(target.TrimEnd(Path.DirectorySeparatorChar))}");Dispatcher.BeginInvoke(()=>NavigateTo(_currentPath),System.Windows.Threading.DispatcherPriority.Background);} e.Handled=true;
+    }
+    private void FileListView_PreviewMouseMove(object s,MouseEventArgs e)
+    {
+        if(e.LeftButton!=MouseButtonState.Pressed||FileListView.SelectedItem is not FileEntry x||x.IsDirectory)return;
+        var p=e.GetPosition(FileListView);if(Math.Abs(p.X-_dragStartPoint.X)<SystemParameters.MinimumHorizontalDragDistance&&Math.Abs(p.Y-_dragStartPoint.Y)<SystemParameters.MinimumVerticalDragDistance)return;
+        if(!File.Exists(x.FullPath))return; var data=new DataObject(DataFormats.FileDrop,new[]{x.FullPath});DragDrop.DoDragDrop(FileListView,data,DragDropEffects.Copy);
     }
 
-    private void FileListView_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    private void FileListView_PreviewKeyDown(object s,KeyEventArgs e)
     {
-        ActivateRequested?.Invoke(this);
-        var item = ItemsControl.ContainerFromElement(FileListView, e.OriginalSource as DependencyObject) as ListViewItem;
-        if (item is not null)
-        {
-            item.IsSelected = true;
-            item.Focus();
-        }
-        else
-        {
-            FileListView.SelectedItem = null;
-        }
-    }
-
-    private void FileListView_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        var owner = Window.GetWindow(this);
-        if (owner is null)
-        {
-            return;
-        }
-
-        var targetPath = FileListView.SelectedItem is FileEntry entry ? entry.FullPath : _currentPath;
-        var screenPoint = FileListView.PointToScreen(e.GetPosition(FileListView));
-        RuntimeLog.Info($"[{Identity.Alias}] Native Shell context menu requested. Path='{targetPath}'");
-
-        if (!ShellContextMenuService.Show(owner, targetPath, screenPoint, out var error))
-        {
-            SetStatus($"Windows Shell menu unavailable: {error}");
-        }
-        else
-        {
-            SetStatus($"Windows Shell menu: {Path.GetFileName(targetPath.TrimEnd(Path.DirectorySeparatorChar))}");
-            Dispatcher.BeginInvoke(() => NavigateTo(_currentPath), System.Windows.Threading.DispatcherPriority.Background);
-        }
-
-        e.Handled = true;
-    }
-
-    private void FileListView_PreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || FileListView.SelectedItem is not FileEntry entry || entry.IsDirectory)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(FileListView);
-        if (Math.Abs(position.X - _dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(position.Y - _dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
-        {
-            return;
-        }
-
-        if (!File.Exists(entry.FullPath))
-        {
-            SetStatus("The selected file no longer exists.");
-            return;
-        }
-
-        var data = new DataObject(DataFormats.FileDrop, new[] { entry.FullPath });
-        RuntimeLog.Info($"[{Identity.Alias}] File drag started. PaneId={Identity.PaneId:D}; Path='{entry.FullPath}'");
-        SetStatus($"Dragging: {entry.Name}");
-        DragDrop.DoDragDrop(FileListView, data, DragDropEffects.Copy);
-    }
-
-    private void FileListView_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C)
-        {
-            CopySelected(false);
-            e.Handled = true;
-        }
-        else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.X)
-        {
-            CopySelected(true);
-            e.Handled = true;
-        }
-        else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.V)
-        {
-            PasteClipboardItems();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Delete)
-        {
-            DeleteSelected();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F2)
-        {
-            RenameSelected();
-            e.Handled = true;
-        }
+        if(Keyboard.Modifiers==ModifierKeys.Control&&e.Key==Key.C){CopySelected(false);e.Handled=true;}
+        else if(Keyboard.Modifiers==ModifierKeys.Control&&e.Key==Key.X){CopySelected(true);e.Handled=true;}
+        else if(Keyboard.Modifiers==ModifierKeys.Control&&e.Key==Key.V){PasteClipboardItems();e.Handled=true;}
+        else if(e.Key==Key.Delete){DeleteSelected();e.Handled=true;}
+        else if(e.Key==Key.F2){RenameSelected();e.Handled=true;}
     }
 
     private void CopySelected(bool move)
     {
-        if (FileListView.SelectedItem is not FileEntry entry)
-        {
-            return;
-        }
-
-        try
-        {
-            var data = new DataObject();
-            data.SetData(DataFormats.FileDrop, new[] { entry.FullPath });
-            data.SetData(PreferredDropEffectFormat, new MemoryStream(BitConverter.GetBytes(move ? DropEffectMove : DropEffectCopy)));
-            Clipboard.SetDataObject(data, true);
-            RuntimeLog.Info($"[{Identity.Alias}] Clipboard {(move ? "cut/move" : "copy")} set. Path='{entry.FullPath}'");
-            SetStatus(move ? $"Cut / Move: {entry.Name}" : $"Copied: {entry.Name}");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] Clipboard operation failed. Path='{entry.FullPath}'", ex);
-            SetStatus($"Clipboard failed: {ex.Message}");
-        }
+        if(FileListView.SelectedItem is not FileEntry x)return;
+        var data=new DataObject();data.SetData(DataFormats.FileDrop,new[]{x.FullPath});data.SetData(PreferredDropEffectFormat,new MemoryStream(BitConverter.GetBytes(move?DropEffectMove:DropEffectCopy)));Clipboard.SetDataObject(data,true);SetStatus(move?$"Cut / Move: {x.Name}":$"Copied: {x.Name}");
     }
 
     private void PasteClipboardItems()
     {
-        if (string.IsNullOrWhiteSpace(_currentPath) || !Directory.Exists(_currentPath))
-        {
-            SetStatus("Current folder is unavailable.");
-            return;
-        }
-
         try
         {
-            if (!CanPasteFromClipboard())
+            if(!Clipboard.ContainsFileDropList()){SetStatus("Clipboard does not contain files or folders.");return;}
+            var move=ClipboardIndicatesMove();int done=0,skip=0;
+            foreach(var source in Clipboard.GetFileDropList().Cast<string>())
             {
-                SetStatus("Clipboard does not contain files or folders.");
-                return;
+                var name=Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar));if(string.IsNullOrWhiteSpace(name)){skip++;continue;}
+                var dest=Path.Combine(_currentPath,name);if(File.Exists(dest)||Directory.Exists(dest)){skip++;continue;}
+                if(File.Exists(source)){if(move)FileSystem.MoveFile(source,dest);else FileSystem.CopyFile(source,dest,false);done++;}
+                else if(Directory.Exists(source)){if(move)FileSystem.MoveDirectory(source,dest);else FileSystem.CopyDirectory(source,dest,false);done++;}else skip++;
             }
-
-            var sources = Clipboard.GetFileDropList().Cast<string>().Where(path => !string.IsNullOrWhiteSpace(path)).ToList();
-            if (sources.Count == 0)
-            {
-                SetStatus("Clipboard does not contain files or folders.");
-                return;
-            }
-
-            var move = ClipboardIndicatesMove();
-            var completed = 0;
-            var skipped = 0;
-
-            foreach (var source in sources)
-            {
-                var trimmedSource = source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                var name = Path.GetFileName(trimmedSource);
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                var destination = Path.Combine(_currentPath, name);
-                if (string.Equals(Path.GetFullPath(trimmedSource), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                if (File.Exists(destination) || Directory.Exists(destination))
-                {
-                    RuntimeLog.Warn($"[{Identity.Alias}] Paste skipped because destination exists. Source='{source}'; Destination='{destination}'");
-                    skipped++;
-                    continue;
-                }
-
-                if (File.Exists(source))
-                {
-                    if (move)
-                    {
-                        FileSystem.MoveFile(source, destination);
-                    }
-                    else
-                    {
-                        FileSystem.CopyFile(source, destination, false);
-                    }
-                    completed++;
-                }
-                else if (Directory.Exists(source))
-                {
-                    if (move)
-                    {
-                        FileSystem.MoveDirectory(source, destination);
-                    }
-                    else
-                    {
-                        FileSystem.CopyDirectory(source, destination, false);
-                    }
-                    completed++;
-                }
-                else
-                {
-                    skipped++;
-                }
-            }
-
-            RuntimeLog.Info($"[{Identity.Alias}] Paste completed. Mode={(move ? "Move" : "Copy")}; Destination='{_currentPath}'; Completed={completed}; Skipped={skipped}");
-            NavigateTo(_currentPath);
-            SetStatus($"{(move ? "Move" : "Copy")} completed: {completed}; skipped: {skipped}.");
+            NavigateTo(_currentPath);SetStatus($"{(move?"Move":"Copy")} completed: {done}; skipped: {skip}.");
         }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] Paste failed. Destination='{_currentPath}'", ex);
-            SetStatus($"Paste failed: {ex.Message}");
-        }
+        catch(Exception ex){SetStatus($"Paste failed: {ex.Message}");}
     }
-
-    private static bool CanPasteFromClipboard()
-    {
-        try
-        {
-            return Clipboard.ContainsFileDropList();
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool ClipboardIndicatesMove()
-    {
-        try
-        {
-            var raw = Clipboard.GetData(PreferredDropEffectFormat);
-            byte[]? bytes = raw switch
-            {
-                MemoryStream stream => stream.ToArray(),
-                byte[] array => array,
-                _ => null
-            };
-
-            return bytes is { Length: >= 4 } && BitConverter.ToInt32(bytes, 0) == DropEffectMove;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    private static bool ClipboardIndicatesMove(){try{var raw=Clipboard.GetData(PreferredDropEffectFormat);var b=raw switch{MemoryStream m=>m.ToArray(),byte[] a=>a,_=>null};return b is {Length:>=4}&&BitConverter.ToInt32(b,0)==DropEffectMove;}catch{return false;}}
 
     private void RenameSelected()
     {
-        if (FileListView.SelectedItem is not FileEntry entry)
-        {
-            return;
-        }
-
-        var dialog = new TextPromptDialog(Window.GetWindow(this), "Rename", "New name:", entry.Name);
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var newName = dialog.Value;
-        if (string.IsNullOrWhiteSpace(newName) || newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            SetStatus("Invalid name.");
-            return;
-        }
-
-        try
-        {
-            var parent = Path.GetDirectoryName(entry.FullPath) ?? _currentPath;
-            var destination = Path.Combine(parent, newName);
-            if (File.Exists(destination) || Directory.Exists(destination))
-            {
-                SetStatus("Rename target already exists.");
-                return;
-            }
-
-            if (entry.IsDirectory)
-            {
-                Directory.Move(entry.FullPath, destination);
-            }
-            else
-            {
-                File.Move(entry.FullPath, destination);
-            }
-
-            RuntimeLog.Info($"[{Identity.Alias}] Renamed. Source='{entry.FullPath}'; Destination='{destination}'");
-            NavigateTo(_currentPath);
-            SetStatus($"Renamed to: {newName}");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] Rename failed. Path='{entry.FullPath}'", ex);
-            SetStatus($"Rename failed: {ex.Message}");
-        }
+        if(FileListView.SelectedItem is not FileEntry x)return;var dialog=new TextPromptDialog(Window.GetWindow(this),"Rename","New name:",x.Name);if(dialog.ShowDialog()!=true)return;
+        var n=dialog.Value;if(string.IsNullOrWhiteSpace(n)||n.IndexOfAny(Path.GetInvalidFileNameChars())>=0){SetStatus("Invalid name.");return;}
+        try{var dest=Path.Combine(Path.GetDirectoryName(x.FullPath)??_currentPath,n);if(File.Exists(dest)||Directory.Exists(dest)){SetStatus("Rename target already exists.");return;}if(x.IsDirectory)Directory.Move(x.FullPath,dest);else File.Move(x.FullPath,dest);NavigateTo(_currentPath);SetStatus($"Renamed to: {n}");}catch(Exception ex){SetStatus($"Rename failed: {ex.Message}");}
     }
 
     private void DeleteSelected()
     {
-        if (FileListView.SelectedItem is not FileEntry entry)
-        {
-            return;
-        }
-
-        var answer = MessageBox.Show(
-            Window.GetWindow(this),
-            $"Move this {(entry.IsDirectory ? "folder" : "file")} to the Recycle Bin?\n\n{entry.Name}",
-            "Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
-        if (answer != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            if (entry.IsDirectory)
-            {
-                FileSystem.DeleteDirectory(entry.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-            }
-            else
-            {
-                FileSystem.DeleteFile(entry.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-            }
-
-            RuntimeLog.Info($"[{Identity.Alias}] Sent to Recycle Bin. Path='{entry.FullPath}'");
-            NavigateTo(_currentPath);
-            SetStatus($"Deleted to Recycle Bin: {entry.Name}");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] Delete failed. Path='{entry.FullPath}'", ex);
-            SetStatus($"Delete failed: {ex.Message}");
-        }
+        if(FileListView.SelectedItem is not FileEntry x)return;var answer=MessageBox.Show(Window.GetWindow(this),$"Move this {(x.IsDirectory?"folder":"file")} to the Recycle Bin?\n\n{x.Name}","Delete",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No);if(answer!=MessageBoxResult.Yes)return;
+        try{if(x.IsDirectory)FileSystem.DeleteDirectory(x.FullPath,UIOption.OnlyErrorDialogs,RecycleOption.SendToRecycleBin);else FileSystem.DeleteFile(x.FullPath,UIOption.OnlyErrorDialogs,RecycleOption.SendToRecycleBin);NavigateTo(_currentPath);SetStatus($"Deleted to Recycle Bin: {x.Name}");}catch(Exception ex){SetStatus($"Delete failed: {ex.Message}");}
     }
 
-    private void CreateNewFolder()
-    {
-        var dialog = new TextPromptDialog(Window.GetWindow(this), "New Folder", "Folder name:", "New folder");
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var name = dialog.Value;
-        if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            SetStatus("Invalid folder name.");
-            return;
-        }
-
-        try
-        {
-            var path = Path.Combine(_currentPath, name);
-            if (Directory.Exists(path) || File.Exists(path))
-            {
-                SetStatus("An item with that name already exists.");
-                return;
-            }
-
-            Directory.CreateDirectory(path);
-            RuntimeLog.Info($"[{Identity.Alias}] Folder created. Path='{path}'");
-            NavigateTo(_currentPath);
-            SetStatus($"Created folder: {name}");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] New folder failed. BasePath='{_currentPath}'", ex);
-            SetStatus($"New folder failed: {ex.Message}");
-        }
-    }
-
-    private void MoveThumb_DragStarted(object sender, DragStartedEventArgs e)
-    {
-        ActivateRequested?.Invoke(this);
-        MoveStarted?.Invoke(this);
-    }
-
-    private void MoveThumb_DragDelta(object sender, DragDeltaEventArgs e)
-        => MoveRequested?.Invoke(this, e.HorizontalChange, e.VerticalChange);
-
-    private void MoveThumb_DragCompleted(object sender, DragCompletedEventArgs e)
-        => MoveCompleted?.Invoke(this);
-
-    private void PaneBorderResize_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        if (sender is not Thumb thumb ||
-            thumb.Tag is not string directionText ||
-            !Enum.TryParse<PaneResizeDirection>(directionText, out var direction))
-        {
-            return;
-        }
-
-        ActivateRequested?.Invoke(this);
-        ResizeRequested?.Invoke(this, direction, e.HorizontalChange, e.VerticalChange);
-    }
-
-    private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        => ActivateRequested?.Invoke(this);
-
-    private void SetStatus(string message)
-    {
-        PaneStatusTextBlock.Text = message;
-        PaneStatusTextBlock.ToolTip = message;
-        StatusChanged?.Invoke(this, message);
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024)
-        {
-            return $"{bytes} B";
-        }
-
-        var kb = bytes / 1024d;
-        if (kb < 1024)
-        {
-            return $"{kb:0.#} KB";
-        }
-
-        var mb = kb / 1024d;
-        if (mb < 1024)
-        {
-            return $"{mb:0.#} MB";
-        }
-
-        return $"{mb / 1024d:0.##} GB";
-    }
+    private void MoveThumb_DragStarted(object s,DragStartedEventArgs e){ActivateRequested?.Invoke(this);MoveStarted?.Invoke(this);}
+    private void MoveThumb_DragDelta(object s,DragDeltaEventArgs e)=>MoveRequested?.Invoke(this,e.HorizontalChange,e.VerticalChange);
+    private void MoveThumb_DragCompleted(object s,DragCompletedEventArgs e)=>MoveCompleted?.Invoke(this);
+    private void PaneBorderResize_DragDelta(object s,DragDeltaEventArgs e){if(s is Thumb t&&t.Tag is string d&&Enum.TryParse<PaneResizeDirection>(d,out var dir)){ActivateRequested?.Invoke(this);ResizeRequested?.Invoke(this,dir,e.HorizontalChange,e.VerticalChange);}}
+    private void UserControl_PreviewMouseDown(object s,MouseButtonEventArgs e)=>ActivateRequested?.Invoke(this);
+    private void SetStatus(string message){PaneStatusTextBlock.Text=message;PaneStatusTextBlock.ToolTip=message;StatusChanged?.Invoke(this,message);}
+    private static string FormatSize(long bytes){if(bytes<1024)return $"{bytes} B";var kb=bytes/1024d;if(kb<1024)return $"{kb:0.#} KB";var mb=kb/1024d;if(mb<1024)return $"{mb:0.#} MB";return $"{mb/1024d:0.##} GB";}
 }

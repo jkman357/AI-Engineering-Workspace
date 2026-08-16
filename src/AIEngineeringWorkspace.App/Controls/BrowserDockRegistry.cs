@@ -9,11 +9,7 @@ internal static class BrowserDockRegistry
     {
         lock (Sync)
         {
-            if (Owners.TryGetValue(hwnd, out var existingOwner))
-            {
-                return ReferenceEquals(existingOwner, owner);
-            }
-
+            if (Owners.TryGetValue(hwnd, out var existingOwner)) return ReferenceEquals(existingOwner, owner);
             Owners[hwnd] = owner;
             return true;
         }
@@ -21,17 +17,10 @@ internal static class BrowserDockRegistry
 
     public static void Release(IntPtr hwnd, BrowserDockHost owner)
     {
-        if (hwnd == IntPtr.Zero)
-        {
-            return;
-        }
-
+        if (hwnd == IntPtr.Zero) return;
         lock (Sync)
         {
-            if (Owners.TryGetValue(hwnd, out var existingOwner) && ReferenceEquals(existingOwner, owner))
-            {
-                Owners.Remove(hwnd);
-            }
+            if (Owners.TryGetValue(hwnd, out var existingOwner) && ReferenceEquals(existingOwner, owner)) Owners.Remove(hwnd);
         }
     }
 }

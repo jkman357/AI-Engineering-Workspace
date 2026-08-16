@@ -40,22 +40,10 @@ internal static class GitPorcelainParser
 
     private static GitPathState StateFromCode(string xy)
     {
-        if (xy == "??")
-        {
-            return GitPathState.Added;
-        }
-        if (xy.Contains('D'))
-        {
-            return GitPathState.Deleted;
-        }
-        if (xy.Contains('A'))
-        {
-            return GitPathState.Added;
-        }
-        if (xy.Contains('M') || xy.Contains('R') || xy.Contains('C') || xy.Contains('U'))
-        {
-            return GitPathState.Modified;
-        }
+        if (xy == "??") return GitPathState.Added;
+        if (xy.Contains('D')) return GitPathState.Deleted;
+        if (xy.Contains('A')) return GitPathState.Added;
+        if (xy.Contains('M') || xy.Contains('R') || xy.Contains('C') || xy.Contains('U')) return GitPathState.Modified;
         return GitPathState.Modified;
     }
 

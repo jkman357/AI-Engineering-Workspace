@@ -1,17 +1,19 @@
-fix: restore docked Firefox keyboard input and confirm New Workspace resets in v0.0.6rc12
+fix: replace persistent Firefox input bridges with transactional focus handoff in v0.0.6rc13
 
-- continue the active v0.0.6 RC line without freezing or advancing the minor version
-- stop normal Browser input handling from enumerating or forcing focus into guessed Firefox compositor/content child HWNDs
-- keep a persistent AttachThreadInput bridge between the WPF UI thread and the reparented Firefox root-window thread for the lifetime of each dock
-- establish the input bridge immediately after SetParent and release it when the browser is detached, lost, or the host is destroyed
-- let Firefox own its internal address-bar and web-content focus transitions after normal mouse clicks
-- keep TabIntoCore and the Focus toolbar action as minimal Firefox root-HWND recovery paths only
-- retain focus diagnostics for Workspace thread, Firefox thread, foreground HWND, previous/current focus HWND, and bridge state
-- make New Workspace use a dedicated confirmation path instead of silently returning true when the current Workspace is clean
-- show an explicit Create New / Cancel confirmation before resetting a clean Workspace
-- retain Save / Discard / Cancel semantics when New Workspace is invoked with unsaved changes
-- preserve deterministic New Workspace reset behavior, default F1/F2 + B1-B4 layout, Auto Fit state, Google Browser startup, and status feedback
-- add regression checks for the persistent root-thread input bridge, removal of internal child-HWND focus guessing, explicit New Workspace confirmation, and rc12 version metadata
-- stamp application/build/run/test metadata as v0.0.6rc12 / 0.0.6-rc12 / FileVersion 0.0.6.12 from Directory.Build.props
-- retain rc11 .aew Workspace persistence, 64x64 endpoint badges, compact version display, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
-- update README, CHANGELOG, rc12 release notes, tests, and UI/build metadata for v0.0.6rc12
+* continue the active v0.0.6 RC line without freezing or advancing the minor version
+* replace rc12 dock-lifetime AttachThreadInput ownership with a centralized FirefoxInputCoordinator
+* perform cross-thread Firefox root focus as a one-shot transaction: temporary AttachThreadInput, SetFocus on the reparented Firefox root HWND, then immediate DetachThreadInput in finally
+* remove persistent input-bridge state and attach/detach lifecycle ownership from individual BrowserDockHost instances
+* prevent multiple Browser panes from retaining thread-level input queue coupling that can make one Firefox pane accept typing while another visually focused pane cannot
+* keep normal Browser input handling free of Firefox compositor/content child-HWND enumeration, ranking, or forced focus guessing
+* let Firefox own its internal address-bar, Google search, web-content, and ChatGPT prompt focus transitions after normal mouse clicks
+* keep TabIntoCore and the Focus toolbar action as minimal Firefox root-HWND recovery paths only, not prerequisites for ordinary Browser typing
+* retain focus diagnostics for Workspace thread, Firefox thread, Firefox PID/root HWND, foreground HWND, previous/current focus HWND, and temporary bridge attach/detach state
+* add regression checks that BrowserDockHost delegates focus to FirefoxInputCoordinator, no persistent bridge state remains, attach/detach are paired transactionally, and child-HWND focus guessing stays removed
+* add a documented multi-Browser real-machine PASS gate: B1=111, B2=222, B3=333, B4=444, then B2=aaa, B3=bbb, B2=ccc, all without pressing Focus first
+* retain rc12 explicit New Workspace confirmation for a clean Workspace and Save / Discard / Cancel semantics for unsaved changes
+* preserve deterministic New Workspace reset behavior, default F1/F2 + B1-B4 layout, Auto Fit state, Google Browser startup, and visible reset feedback
+* stamp application/build/run/test metadata as v0.0.6rc13 / 0.0.6-rc13 / FileVersion 0.0.6.13 from Directory.Build.props
+* retain rc11 .aew Workspace persistence, 64x64 endpoint badges, compact version display, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
+* document the source packaging convention: version in the ZIP filename only, with extracted root fixed as AI-Engineering-Workspace\
+* update README, CHANGELOG, rc13 release notes, regression tests, and UI/build metadata for v0.0.6rc13
