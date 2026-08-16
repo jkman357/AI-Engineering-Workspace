@@ -1,19 +1,19 @@
-fix: replace persistent Firefox input bridges with transactional focus handoff in v0.0.6rc13
+diagnostic: trace Firefox IME and input-language state in v0.0.6rc14
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* replace rc12 dock-lifetime AttachThreadInput ownership with a centralized FirefoxInputCoordinator
-* perform cross-thread Firefox root focus as a one-shot transaction: temporary AttachThreadInput, SetFocus on the reparented Firefox root HWND, then immediate DetachThreadInput in finally
-* remove persistent input-bridge state and attach/detach lifecycle ownership from individual BrowserDockHost instances
-* prevent multiple Browser panes from retaining thread-level input queue coupling that can make one Firefox pane accept typing while another visually focused pane cannot
-* keep normal Browser input handling free of Firefox compositor/content child-HWND enumeration, ranking, or forced focus guessing
-* let Firefox own its internal address-bar, Google search, web-content, and ChatGPT prompt focus transitions after normal mouse clicks
-* keep TabIntoCore and the Focus toolbar action as minimal Firefox root-HWND recovery paths only, not prerequisites for ordinary Browser typing
-* retain focus diagnostics for Workspace thread, Firefox thread, Firefox PID/root HWND, foreground HWND, previous/current focus HWND, and temporary bridge attach/detach state
-* add regression checks that BrowserDockHost delegates focus to FirefoxInputCoordinator, no persistent bridge state remains, attach/detach are paired transactionally, and child-HWND focus guessing stays removed
-* add a documented multi-Browser real-machine PASS gate: B1=111, B2=222, B3=333, B4=444, then B2=aaa, B3=bbb, B2=ccc, all without pressing Focus first
-* retain rc12 explicit New Workspace confirmation for a clean Workspace and Save / Discard / Cancel semantics for unsaved changes
-* preserve deterministic New Workspace reset behavior, default F1/F2 + B1-B4 layout, Auto Fit state, Google Browser startup, and visible reset feedback
-* stamp application/build/run/test metadata as v0.0.6rc13 / 0.0.6-rc13 / FileVersion 0.0.6.13 from Directory.Build.props
-* retain rc11 .aew Workspace persistence, 64x64 endpoint badges, compact version display, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
-* document the source packaging convention: version in the ZIP filename only, with extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc13 release notes, regression tests, and UI/build metadata for v0.0.6rc13
+* retain rc13 centralized transactional Firefox root-HWND focus handoff for ordinary keyboard input
+* treat real-machine English/number PASS versus Zhuyin/IME FAIL as a separate input-language/composition investigation path
+* add GetKeyboardLayout diagnostics for both the WPF Workspace UI thread and the docked Firefox window thread
+* add GetGUIThreadInfo diagnostics for Firefox active HWND, focus HWND, caret HWND, foreground HWND, PID, and input thread
+* sample each docked Browser from the existing one-second health loop and emit diagnostics only when observable input state changes
+* record WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE when they reach the WPF MainWindow or WPF-owned Browser host HWND
+* record WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_IME_COMPOSITION, and WM_IME_ENDCOMPOSITION on the observable WPF-side HWND boundaries
+* expand Firefox focus-handoff diagnostics with Workspace/Firefox HKL values before and after SetFocus plus GUI-thread focus evidence
+* deliberately do not synthesize IME composition messages, call ActivateKeyboardLayout, or force a keyboard-layout change into Firefox before evidence identifies the failing boundary
+* add regression checks for HKL/GUI-thread P/Invokes, input-language/IME message instrumentation, periodic state-transition diagnostics, and the read-only rc14 investigation policy
+* document a Windows manual PASS/FAIL gate covering English/number input, English-to-Zhuyin switching, Zhuyin composition, return to English/number input, and runtime-log capture
+* stamp application/build/run/test metadata as v0.0.6rc14 / 0.0.6-rc14 / FileVersion 0.0.6.14 from Directory.Build.props
+* retain rc12 explicit New Workspace confirmation and Save / Discard / Cancel behavior for unsaved changes
+* retain .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google Browser startup, endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
+* preserve the source packaging convention: version only in the ZIP filename and extracted root fixed as AI-Engineering-Workspace\
+* update README, CHANGELOG, rc14 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc14

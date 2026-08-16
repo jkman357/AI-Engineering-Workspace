@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc13**
+Current version: **v0.0.6rc14**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -42,6 +42,19 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc14 — Firefox IME / Input-Language Diagnostics
+
+This RC continues the active **v0.0.6** line after real-machine rc13 testing established a sharper input boundary: docked Firefox can accept ordinary English/number key input, while switching to a Zhuyin/IME path can leave composition unavailable.
+
+rc14 is intentionally an **evidence-gathering RC**, not an IME emulator. It keeps the rc13 transactional root-HWND focus handoff and adds read-only diagnostics around the Windows input-language boundary:
+
+- records the Workspace-thread and Firefox-thread `GetKeyboardLayout` (HKL) values before/after explicit Firefox focus handoff;
+- samples the docked Firefox GUI thread with `GetGUIThreadInfo` from the existing one-second health loop and logs only observable state transitions (`hwndActive`, `hwndFocus`, `hwndCaret`, foreground HWND and HKL values);
+- records `WM_INPUTLANGCHANGEREQUEST`, `WM_INPUTLANGCHANGE`, `WM_IME_SETCONTEXT`, `WM_IME_STARTCOMPOSITION`, `WM_IME_COMPOSITION`, and `WM_IME_ENDCOMPOSITION` when they reach the WPF top-level HWND or the WPF-owned Browser host HWND;
+- does **not** synthesize IME composition messages, call `ActivateKeyboardLayout`, or force a keyboard layout into Firefox in rc14.
+
+The validation goal is to distinguish two materially different failures after switching English/number input to Zhuyin: (1) the Firefox thread HKL never changes, or (2) the Firefox thread HKL changes but the IME composition path still does not activate. That evidence determines the next fix without expanding the Workspace into an IME proxy.
 
 ## v0.0.6rc13 — Transactional Firefox focus handoff
 
@@ -87,7 +100,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc13.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc14.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

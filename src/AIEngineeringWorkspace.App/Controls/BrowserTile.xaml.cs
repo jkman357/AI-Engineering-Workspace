@@ -91,7 +91,10 @@ public partial class BrowserTile : UserControl
             if (_workspaceLaunchedWindows.Remove(trackedHwnd)) RuntimeLog.Info($"[{Identity.Alias}] Removed closed Workspace-launched Firefox from shutdown ownership. HWND=0x{trackedHwnd.ToInt64():X}");
             _dockedWindow = null;
             UpdateBrowserControls();
+            return;
         }
+
+        BrowserHost.ProbeInputState($"{Identity.Alias}.HealthTimer");
     }
 
     public void Shutdown()

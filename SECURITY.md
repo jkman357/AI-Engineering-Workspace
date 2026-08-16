@@ -43,6 +43,10 @@ AIEW_LOG_MAX_FILES=50
 AIEW_LOG_MAX_MB=10
 ```
 
+### rc14 input-language diagnostics
+
+`v0.0.6rc14` adds temporary engineering diagnostics for the docked-Firefox IME/input-language investigation. Runtime logs may additionally contain keyboard-layout handles (HKL), Firefox GUI-thread active/focus/caret HWND values, and the names/parameters of observed input-language or IME boundary messages. The rc14 instrumentation does **not** intentionally read, reconstruct, or log the user's composed IME text. These diagnostics remain local and follow the same retention/redaction policy described above.
+
 ## Privilege model
 
 The manifest uses `asInvoker`. The application is designed for standard-user operation and does not require Administrator elevation by design. `asInvoker` follows the caller's token; an already elevated parent can still launch an elevated process.

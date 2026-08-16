@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Interop;
 using Microsoft.Win32;
 using AIEngineeringWorkspace.Controls;
+using AIEngineeringWorkspace.Browser;
 using AIEngineeringWorkspace.Infrastructure;
 using AIEngineeringWorkspace.Workspace;
 
@@ -32,12 +34,15 @@ public partial class MainWindow : Window
     private bool _workspaceDirty;
     private bool _suppressDirtyTracking;
     private int _newWorkspaceResetCount;
+    private HwndSource? _mainHwndSource;
+    private HwndSourceHook? _inputMessageHook;
 
     public MainWindow()
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Transactional Firefox Focus Handoff";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Firefox IME / Input-Language Diagnostics";
+        SourceInitialized += (_, _) => InstallInputMessageDiagnostics();
         _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _healthTimer.Tick += (_, _) => { foreach (var tile in _browserPanes.ToArray()) tile.CheckHealth(); };
         Loaded += (_, _) =>
@@ -53,6 +58,38 @@ public partial class MainWindow : Window
         };
         WorkspaceScrollViewer.SizeChanged += (_, _) => { if (_workspaceInitialized && _autoFitLayout && _maximizedPane is null) Dispatcher.InvokeAsync(ApplyAutoFitLayout, DispatcherPriority.Background); };
         Closing += MainWindow_Closing;
+    }
+
+    private void InstallInputMessageDiagnostics()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        _mainHwndSource = HwndSource.FromHwnd(hwnd);
+        if (_mainHwndSource is null)
+        {
+            RuntimeLog.Warn("Unable to install MainWindow input-language diagnostics because HwndSource is unavailable.");
+            return;
+        }
+
+        _inputMessageHook = MainWindowInputMessageHook;
+        _mainHwndSource.AddHook(_inputMessageHook);
+        RuntimeLog.Info($"MainWindow input-language/IME message diagnostics installed. HWND=0x{hwnd.ToInt64():X}; WorkspaceThread={AIEngineeringWorkspace.Interop.NativeMethods.GetCurrentThreadId()}; WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(AIEngineeringWorkspace.Interop.NativeMethods.GetKeyboardLayout(0))}");
+    }
+
+    private IntPtr MainWindowInputMessageHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        InputLanguageDiagnostics.LogWindowMessage("WPF.MainWindow", hwnd, msg, wParam, lParam);
+        return IntPtr.Zero;
+    }
+
+    private void RemoveInputMessageDiagnostics()
+    {
+        if (_mainHwndSource is not null && _inputMessageHook is not null)
+        {
+            _mainHwndSource.RemoveHook(_inputMessageHook);
+        }
+
+        _inputMessageHook = null;
+        _mainHwndSource = null;
     }
 
     private void CreateDefaultWorkspaceToFitViewport()
@@ -223,5 +260,5 @@ public partial class MainWindow : Window
     private void MarkWorkspaceDirty(string reason){if(_suppressDirtyTracking||!_workspaceInitialized)return;if(!_workspaceDirty){_workspaceDirty=true;UpdateWindowTitle();RuntimeLog.Debug($"Workspace marked dirty. Reason='{reason}'");}}
     private void SetWorkspaceDirty(bool dirty){_workspaceDirty=dirty;UpdateWindowTitle();}
     private void UpdateWindowTitle(){var projectName=string.IsNullOrWhiteSpace(_currentWorkspacePath)?"Untitled Workspace":Path.GetFileNameWithoutExtension(_currentWorkspacePath);Title=$"AI Engineering Workspace — {AppInfo.DisplayVersion} — {projectName}{(_workspaceDirty?" *":"")}";}
-    private void ShutdownWorkspace(){if(_closing)return;_closing=true;_healthTimer.Stop();foreach(var tile in _browserPanes.ToArray())tile.Shutdown();}
+    private void ShutdownWorkspace(){if(_closing)return;_closing=true;_healthTimer.Stop();RemoveInputMessageDiagnostics();foreach(var tile in _browserPanes.ToArray())tile.Shutdown();}
 }

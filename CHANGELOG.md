@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.6rc14
+
+- continue the active v0.0.6 RC line without freezing the release;
+- retain rc13 transactional Firefox root-HWND focus handoff for ordinary keyboard input;
+- add read-only Workspace-thread / Firefox-thread keyboard-layout (HKL) diagnostics;
+- add `GetGUIThreadInfo` evidence for Firefox active/focus/caret HWND state;
+- sample input state from the existing Browser health loop and log only observable state transitions;
+- observe input-language and IME boundary messages on the WPF MainWindow and WPF-owned Browser host HWNDs;
+- explicitly avoid synthesizing IME composition messages or forcing Firefox keyboard-layout changes before root-cause evidence is captured;
+- add an rc14 manual gate for English/number -> Zhuyin switching and corresponding runtime-log evidence;
+- stamp application/build/run/test metadata as `v0.0.6rc14` / `0.0.6-rc14` / FileVersion `0.0.6.14`;
+- retain rc12 New Workspace confirmation behavior and the remaining rc11/rc13 Workspace, Shell/Git, security/privacy, standard-user, API-free, and MIT-license behavior.
+
 ## v0.0.6rc13
 
 - replace rc12 dock-lifetime `AttachThreadInput` bridges with centralized one-shot Firefox root-HWND focus handoff transactions;

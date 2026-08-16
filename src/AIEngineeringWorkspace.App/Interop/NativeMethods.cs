@@ -33,6 +33,12 @@ internal static class NativeMethods
     internal const int SW_RESTORE = 9;
     internal const uint WM_SETREDRAW = 0x000B;
     internal const uint WM_CLOSE = 0x0010;
+    internal const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
+    internal const uint WM_INPUTLANGCHANGE = 0x0051;
+    internal const uint WM_IME_STARTCOMPOSITION = 0x010D;
+    internal const uint WM_IME_ENDCOMPOSITION = 0x010E;
+    internal const uint WM_IME_COMPOSITION = 0x010F;
+    internal const uint WM_IME_SETCONTEXT = 0x0281;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
     internal const uint RDW_INVALIDATE = 0x0001;
     internal const uint RDW_ERASE = 0x0004;
@@ -63,12 +69,26 @@ internal static class NativeMethods
     {
         public uint Length; public uint Flags; public uint ShowCmd; public POINT MinPosition; public POINT MaxPosition; public RECT NormalPosition;
     }
+    [StructLayout(LayoutKind.Sequential)] internal struct GUITHREADINFO
+    {
+        public uint cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
 
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool EnumChildWindows(IntPtr hWndParent, EnumChildProc lpEnumFunc, IntPtr lParam);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool IsWindow(IntPtr hWnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll")] internal static extern IntPtr GetKeyboardLayout(uint idThread);
+    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
     [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);

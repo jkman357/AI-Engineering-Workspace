@@ -49,6 +49,13 @@ public sealed class BrowserDockHost : HwndHost
         }
     }
 
+
+    protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        InputLanguageDiagnostics.LogWindowMessage("BrowserDockHost", hwnd, msg, wParam, lParam);
+        return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
+    }
+
     protected override void OnWindowPositionChanged(System.Windows.Rect rcBoundingBox)
     {
         base.OnWindowPositionChanged(rcBoundingBox);
@@ -239,6 +246,12 @@ public sealed class BrowserDockHost : HwndHost
 
     public void FocusBrowserContent() => FocusBrowser();
 
+    public void ProbeInputState(string reason)
+    {
+        if (!CheckDockedWindowHealth()) return;
+        FirefoxInputCoordinator.ProbeState(_browserHwnd, _workspaceInputThreadId, reason);
+    }
+
     public async Task<bool> NavigateByKeyboardAsync(string url)
     {
         if (!CheckDockedWindowHealth()) return false;
@@ -309,6 +322,7 @@ public sealed class BrowserDockHost : HwndHost
     private void ClearDockState()
     {
         var previousBrowserHwnd = _browserHwnd;
+        FirefoxInputCoordinator.Forget(previousBrowserHwnd);
         BrowserDockRegistry.Release(previousBrowserHwnd, this);
         _browserHwnd = IntPtr.Zero;
         _originalStyle = IntPtr.Zero;
