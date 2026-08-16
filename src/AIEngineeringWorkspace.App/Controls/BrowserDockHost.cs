@@ -54,11 +54,9 @@ public sealed class BrowserDockHost : HwndHost
     protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         InputLanguageDiagnostics.LogWindowMessage("BrowserDockHost", hwnd, msg, wParam, lParam);
-        if (IsDocked && IsNativeBrowserActivationMessage(msg, wParam))
+        if (IsDocked && IsNativeBrowserMouseDown(msg, wParam))
         {
-            var reason = (uint)msg == NativeMethods.WM_MOUSEACTIVATE
-                ? "BrowserDockHost.WM_MOUSEACTIVATE"
-                : $"BrowserDockHost.WM_PARENTNOTIFY.MouseDown(0x{LowWord(wParam):X4})";
+            var reason = $"BrowserDockHost.WM_PARENTNOTIFY.MouseDown(0x{LowWord(wParam):X4})";
             try
             {
                 RuntimeLog.Debug($"Native Firefox activation observed. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'");
@@ -70,12 +68,17 @@ public sealed class BrowserDockHost : HwndHost
                 RuntimeLog.Error($"Native Firefox activation recovery failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'", ex);
             }
         }
+        else if (IsDocked && (uint)msg == NativeMethods.WM_MOUSEACTIVATE)
+        {
+            // WM_PARENTNOTIFY mouse-down is the single focus-ownership path in rc17.
+            // Keep WM_MOUSEACTIVATE visible for diagnostics without performing a second handoff.
+            RuntimeLog.Debug($"Native Firefox WM_MOUSEACTIVATE observed; duplicate focus handoff suppressed. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}");
+        }
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
 
-    private static bool IsNativeBrowserActivationMessage(int msg, IntPtr wParam)
+    private static bool IsNativeBrowserMouseDown(int msg, IntPtr wParam)
     {
-        if ((uint)msg == NativeMethods.WM_MOUSEACTIVATE) return true;
         if ((uint)msg != NativeMethods.WM_PARENTNOTIFY) return false;
         return LowWord(wParam) is NativeMethods.WM_LBUTTONDOWN or NativeMethods.WM_RBUTTONDOWN or NativeMethods.WM_MBUTTONDOWN or NativeMethods.WM_XBUTTONDOWN;
     }
@@ -141,8 +144,9 @@ public sealed class BrowserDockHost : HwndHost
             RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed after dock. Win32={Marshal.GetLastWin32Error()}");
 
         ResizeDockedWindow();
+        FirefoxInputCoordinator.RegisterDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.Dock");
         FocusBrowser();
-        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; no persistent input bridge retained after focus handoff.");
+        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; persistent input bridge ownership is managed centrally per Firefox thread.");
     }
 
     public void Detach()

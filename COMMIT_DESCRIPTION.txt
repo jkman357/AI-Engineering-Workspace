@@ -1,22 +1,24 @@
-fix: centralize native Firefox activation ownership in v0.0.6rc16
+fix: share one reference-counted Firefox input bridge per input thread in v0.0.6rc17
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* treat rc15 real-machine failures as one native Browser activation-ownership problem instead of separate Browser-count, Show IDs, maximize, and IME defects
-* keep FirefoxInputCoordinator as the single authority for one-shot cross-thread root-HWND focus transactions using temporary AttachThreadInput, SetFocus, and immediate detach in finally
-* add central active docked Firefox root-HWND ownership so Workspace transitions recover the Browser the user actually operated instead of guessing a pane
-* observe WM_PARENTNOTIFY mouse-down and WM_MOUSEACTIVATE on BrowserDockHost and perform native Firefox focus recovery when the user clicks hosted Firefox content
-* stop relying on WPF PreviewMouseDown as the only Browser activation signal because hosted Win32 input can bypass WPF routed mouse events
-* propagate native Browser activation to the owning BrowserTile/MainWindow for pane z-order while keeping Firefox internal address-bar/web-content focus transitions under Firefox control
-* mark docked Browser roots active from WPF Browser chrome and clear active-Browser ownership when a File pane is activated to prevent layout recovery from stealing File Manager focus
-* restore only the active Browser after Show IDs enable/disable, layout-mode toggle, Add Browser, Workspace viewport resize, and explicit Browser maximize/restore transitions
-* refit and final-repaint the active Browser before deferred ContextIdle focus recovery after WPF-owned layout changes
-* synchronize stale Firefox-thread input-language state by posting WM_INPUTLANGCHANGEREQUEST to the active Firefox root when WPF receives WM_INPUTLANGCHANGE and the Workspace/Firefox HKLs differ
-* keep input-language synchronization request-based only; do not call ActivateKeyboardLayout, synthesize WM_IME_COMPOSITION, or proxy IME composition data
-* retain Firefox child-HWND focus-guessing removal and do not enumerate/rank compositor/content child HWNDs for normal input
-* expand runtime diagnostics with active Browser HWND ownership, native activation reasons, focus transaction results, HKL mismatch state, and input-language request results
-* add regression checks for native WM_PARENTNOTIFY/WM_MOUSEACTIVATE activation, central active-root ownership, active-only layout recovery, File-pane focus isolation, and active-root input-language synchronization
-* document a real-machine B1-B8 PASS gate covering repeated cross-pane English/number and Zhuyin input, Show IDs on/off, close/reopen cycles, File-to-Browser switching, and maximize/restore without pressing Focus
-* stamp application/build/run/test metadata as v0.0.6rc16 / 0.0.6-rc16 / FileVersion 0.0.6.16 from Directory.Build.props
+* use rc16 runtime evidence to separate native Browser click detection from the remaining keyboard-routing failure
+* replace one-shot AttachThreadInput attach/focus/detach transactions with one persistent bridge per unique Workspace UI thread / Firefox input-thread pair
+* register every dock centrally after SetParent and before the initial Firefox root focus handoff
+* reference-count all docked Firefox root HWNDs that share the same Firefox input thread instead of assigning bridge ownership to individual Browser panes
+* attach the WPF and Firefox input queues only when the first dock on a thread pair is registered
+* keep the shared input bridge connected while any Browser dock on that Firefox thread remains
+* switch B1/B2/B3/B4 keyboard ownership by SetFocus on the clicked Firefox root without tearing down the shared thread bridge after each click
+* decrement the thread-bridge reference count when a Browser is detached, lost, or destroyed and detach AttachThreadInput only after the final registered dock on that thread pair is removed
+* keep all persistent bridge state in FirefoxInputCoordinator so BrowserDockHost instances cannot independently detach shared thread ownership
+* retain central ActiveBrowserHWND tracking and active-only WPF layout / Show IDs / maximize-restore focus recovery
+* make WM_PARENTNOTIFY mouse-down the single native Browser activation/focus path and keep WM_MOUSEACTIVATE diagnostic-only to suppress duplicate focus handoffs for one click
+* retain request-based active-root WM_INPUTLANGCHANGEREQUEST synchronization when Workspace and Firefox HKLs differ
+* continue to avoid ActivateKeyboardLayout, synthetic WM_IME_COMPOSITION, and Firefox compositor/content child-HWND enumeration or focus guessing
+* expand runtime diagnostics with persistent bridge attached state, reference count, registered-dock count, active Browser HWND, current focus, GUI focus, and bridge acquire/release events
+* add regression checks for central per-thread bridge ownership, reference-counted last-dock detach, absence of per-pane bridge state, and WM_MOUSEACTIVATE handoff deduplication
+* add a real-machine routing gate: B3=333, B1=111, B2=222, B4=444, then B3=ccc, B1=aaa, B2=bbb, with every value remaining in the clicked Browser and no Focus-button use
+* retain the broader B1-B8 English/number + Zhuyin, Show IDs, layout, close/reopen, File-pane isolation, and maximize/restore regression gates
+* stamp application/build/run/test metadata as v0.0.6rc17 / 0.0.6-rc17 / FileVersion 0.0.6.17 from Directory.Build.props
 * retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, 64x64 endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
 * preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc16 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc16
+* update README, CHANGELOG, rc17 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc17

@@ -7,16 +7,22 @@ namespace AIEngineeringWorkspace.Browser;
 /// <summary>
 /// Central authority for docked Firefox native input ownership.
 ///
-/// Cross-thread focus is always a one-shot transaction: temporary AttachThreadInput,
-/// root-HWND SetFocus, then detach in finally. rc16 additionally tracks the last active
-/// docked Firefox root HWND so native Browser clicks and WPF-owned layout transitions can
-/// recover the same Browser deterministically. Input-language synchronization is limited
-/// to WM_INPUTLANGCHANGEREQUEST; this coordinator never synthesizes IME composition.
+/// rc17 owns AttachThreadInput at the unique Firefox input-thread level rather than at
+/// individual Browser-pane level. The first dock on a WorkspaceThread/FirefoxThread pair
+/// acquires one persistent bridge; additional panes on the same Firefox thread only raise
+/// its reference count. The bridge is released only after the last registered dock on that
+/// thread pair is removed. Browser switching therefore changes only the Firefox root HWND
+/// focus while the shared input-queue relationship remains stable.
+///
+/// Input-language synchronization remains request-based only. This coordinator never
+/// synthesizes IME composition or guesses Firefox compositor/content child HWNDs.
 /// </summary>
 internal static class FirefoxInputCoordinator
 {
     private static readonly object Sync = new();
     private static readonly Dictionary<IntPtr, InputSnapshot> LastSnapshots = new();
+    private static readonly Dictionary<IntPtr, DockRegistration> DockRegistrations = new();
+    private static readonly Dictionary<BridgeKey, ThreadBridgeState> ThreadBridges = new();
     private static IntPtr _activeBrowserHwnd;
 
     internal static IntPtr ActiveBrowserHwnd
@@ -31,6 +37,49 @@ internal static class FirefoxInputCoordinator
                 }
                 return _activeBrowserHwnd;
             }
+        }
+    }
+
+    internal static bool RegisterDock(IntPtr browserHwnd, uint workspaceThreadId, string reason)
+    {
+        if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd))
+        {
+            RuntimeLog.Warn($"Firefox dock registration skipped because BrowserHWND=0x{browserHwnd.ToInt64():X} is invalid. Reason='{reason}'");
+            return false;
+        }
+
+        lock (Sync)
+        {
+            workspaceThreadId = workspaceThreadId == 0 ? NativeMethods.GetCurrentThreadId() : workspaceThreadId;
+            var browserThreadId = NativeMethods.GetWindowThreadProcessId(browserHwnd, out var browserPid);
+            if (browserThreadId == 0)
+            {
+                RuntimeLog.Warn($"Firefox dock registration could not resolve BrowserThread. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; Reason='{reason}'");
+                return false;
+            }
+
+            var key = new BridgeKey(workspaceThreadId, browserThreadId);
+            if (DockRegistrations.TryGetValue(browserHwnd, out var existing))
+            {
+                if (existing.Key == key)
+                {
+                    var state = GetOrCreateBridgeStateLocked(key, browserPid, browserHwnd, reason);
+                    EnsureBridgeAttachedLocked(key, state, browserPid, browserHwnd, $"{reason}.ExistingRegistration");
+                    return !state.BridgeRequired || state.Attached;
+                }
+                ReleaseRegistrationLocked(browserHwnd, existing, $"{reason}.RegistrationChanged");
+            }
+
+            var bridge = GetOrCreateBridgeStateLocked(key, browserPid, browserHwnd, reason);
+            bridge.RefCount++;
+            DockRegistrations[browserHwnd] = new DockRegistration(key, browserPid);
+            EnsureBridgeAttachedLocked(key, bridge, browserPid, browserHwnd, reason);
+
+            RuntimeLog.Info(
+                $"Persistent Firefox input bridge registration acquired. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; " +
+                $"BrowserThread={browserThreadId}; PID={browserPid}; BridgeRequired={bridge.BridgeRequired}; BridgeAttached={bridge.Attached}; " +
+                $"BridgeRefCount={bridge.RefCount}; RegisteredDockCount={DockRegistrations.Count}; Reason='{reason}'");
+            return !bridge.BridgeRequired || bridge.Attached;
         }
     }
 
@@ -89,45 +138,26 @@ internal static class FirefoxInputCoordinator
                 return;
             }
 
+            var key = new BridgeKey(workspaceThreadId, browserThreadId);
+            if (!DockRegistrations.TryGetValue(browserHwnd, out var registration) || registration.Key != key)
+            {
+                RuntimeLog.Warn($"Firefox focus handoff found no matching persistent bridge registration. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; Reason='{reason}'");
+                RegisterDock(browserHwnd, workspaceThreadId, $"{reason}.LazyRegister");
+            }
+
+            if (!ThreadBridges.TryGetValue(key, out var bridge))
+            {
+                RuntimeLog.Warn($"Firefox focus handoff has no thread bridge state after registration. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; Reason='{reason}'");
+                return;
+            }
+            EnsureBridgeAttachedLocked(key, bridge, browserPid, browserHwnd, reason);
+
             var before = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
-            var bridgeRequired = workspaceThreadId != browserThreadId;
-            var bridgeAttached = false;
-            var bridgeDetached = !bridgeRequired;
-            IntPtr previousFocus = IntPtr.Zero;
-            IntPtr currentFocus = IntPtr.Zero;
-            IntPtr foreground = IntPtr.Zero;
-            var focusError = 0;
-
-            try
-            {
-                if (bridgeRequired)
-                {
-                    Marshal.SetLastPInvokeError(0);
-                    bridgeAttached = NativeMethods.AttachThreadInput(workspaceThreadId, browserThreadId, true);
-                    if (!bridgeAttached)
-                    {
-                        RuntimeLog.Warn($"Temporary Firefox input bridge attach failed. WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}; Reason='{reason}'");
-                    }
-                }
-
-                Marshal.SetLastPInvokeError(0);
-                previousFocus = NativeMethods.SetFocus(browserHwnd);
-                focusError = Marshal.GetLastPInvokeError();
-                currentFocus = NativeMethods.GetFocus();
-                foreground = NativeMethods.GetForegroundWindow();
-            }
-            finally
-            {
-                if (bridgeAttached)
-                {
-                    Marshal.SetLastPInvokeError(0);
-                    bridgeDetached = NativeMethods.AttachThreadInput(workspaceThreadId, browserThreadId, false);
-                    if (!bridgeDetached)
-                    {
-                        RuntimeLog.Warn($"Temporary Firefox input bridge detach failed. WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}; Reason='{reason}'");
-                    }
-                }
-            }
+            Marshal.SetLastPInvokeError(0);
+            var previousFocus = NativeMethods.SetFocus(browserHwnd);
+            var focusError = Marshal.GetLastPInvokeError();
+            var currentFocus = NativeMethods.GetFocus();
+            var foreground = NativeMethods.GetForegroundWindow();
 
             var after = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
             LastSnapshots[browserHwnd] = after;
@@ -138,11 +168,10 @@ internal static class FirefoxInputCoordinator
             }
 
             RuntimeLog.Info(
-                $"Firefox transactional root focus handoff completed. BrowserHWND=0x{browserHwnd.ToInt64():X}; " +
+                $"Firefox persistent-bridge root focus handoff completed. BrowserHWND=0x{browserHwnd.ToInt64():X}; " +
                 $"ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; " +
-                $"TemporaryInputBridgeAttached={bridgeAttached}; TemporaryInputBridgeDetached={bridgeDetached}; " +
-                $"PreviousFocus=0x{previousFocus.ToInt64():X}; CurrentFocus=0x{currentFocus.ToInt64():X}; " +
-                $"Foreground=0x{foreground.ToInt64():X}; Win32={focusError}; " +
+                $"PersistentInputBridgeRequired={bridge.BridgeRequired}; PersistentInputBridgeAttached={bridge.Attached}; BridgeRefCount={bridge.RefCount}; " +
+                $"PreviousFocus=0x{previousFocus.ToInt64():X}; CurrentFocus=0x{currentFocus.ToInt64():X}; Foreground=0x{foreground.ToInt64():X}; Win32={focusError}; " +
                 $"WorkspaceHKLBefore={InputLanguageDiagnostics.FormatHkl(before.WorkspaceHkl)}; BrowserHKLBefore={InputLanguageDiagnostics.FormatHkl(before.BrowserHkl)}; " +
                 $"WorkspaceHKLAfter={InputLanguageDiagnostics.FormatHkl(after.WorkspaceHkl)}; BrowserHKLAfter={InputLanguageDiagnostics.FormatHkl(after.BrowserHkl)}; " +
                 $"GuiActiveAfter=0x{after.GuiActive.ToInt64():X}; GuiFocusAfter=0x{after.GuiFocus.ToInt64():X}; GuiCaretAfter=0x{after.GuiCaret.ToInt64():X}; " +
@@ -180,6 +209,82 @@ internal static class FirefoxInputCoordinator
         }
     }
 
+    private static ThreadBridgeState GetOrCreateBridgeStateLocked(BridgeKey key, uint browserPid, IntPtr browserHwnd, string reason)
+    {
+        if (ThreadBridges.TryGetValue(key, out var existing)) return existing;
+        var state = new ThreadBridgeState(key.WorkspaceThreadId != key.BrowserThreadId, browserPid);
+        ThreadBridges[key] = state;
+        RuntimeLog.Info(
+            $"Firefox input bridge state created. WorkspaceThread={key.WorkspaceThreadId}; BrowserThread={key.BrowserThreadId}; PID={browserPid}; " +
+            $"BridgeRequired={state.BridgeRequired}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Reason='{reason}'");
+        return state;
+    }
+
+    private static void EnsureBridgeAttachedLocked(BridgeKey key, ThreadBridgeState state, uint browserPid, IntPtr browserHwnd, string reason)
+    {
+        if (!state.BridgeRequired)
+        {
+            state.Attached = true;
+            return;
+        }
+        if (state.Attached) return;
+
+        Marshal.SetLastPInvokeError(0);
+        state.Attached = NativeMethods.AttachThreadInput(key.WorkspaceThreadId, key.BrowserThreadId, true);
+        var error = state.Attached ? 0 : Marshal.GetLastWin32Error();
+        if (state.Attached)
+        {
+            RuntimeLog.Info(
+                $"Persistent Firefox input bridge attached. WorkspaceThread={key.WorkspaceThreadId}; BrowserThread={key.BrowserThreadId}; PID={browserPid}; " +
+                $"BridgeRefCount={state.RefCount}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Reason='{reason}'");
+        }
+        else
+        {
+            RuntimeLog.Warn(
+                $"Persistent Firefox input bridge attach failed. WorkspaceThread={key.WorkspaceThreadId}; BrowserThread={key.BrowserThreadId}; PID={browserPid}; " +
+                $"BridgeRefCount={state.RefCount}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={error}; Reason='{reason}'");
+        }
+    }
+
+    private static void ReleaseRegistrationLocked(IntPtr browserHwnd, DockRegistration registration, string reason)
+    {
+        DockRegistrations.Remove(browserHwnd);
+        if (!ThreadBridges.TryGetValue(registration.Key, out var bridge)) return;
+
+        bridge.RefCount = Math.Max(0, bridge.RefCount - 1);
+        if (bridge.RefCount > 0)
+        {
+            RuntimeLog.Info(
+                $"Persistent Firefox input bridge registration released; bridge retained. BrowserHWND=0x{browserHwnd.ToInt64():X}; " +
+                $"WorkspaceThread={registration.Key.WorkspaceThreadId}; BrowserThread={registration.Key.BrowserThreadId}; PID={registration.BrowserPid}; " +
+                $"BridgeAttached={bridge.Attached}; BridgeRefCount={bridge.RefCount}; Reason='{reason}'");
+            return;
+        }
+
+        var detached = !bridge.BridgeRequired || !bridge.Attached;
+        var detachError = 0;
+        if (bridge.BridgeRequired && bridge.Attached)
+        {
+            Marshal.SetLastPInvokeError(0);
+            detached = NativeMethods.AttachThreadInput(registration.Key.WorkspaceThreadId, registration.Key.BrowserThreadId, false);
+            detachError = detached ? 0 : Marshal.GetLastWin32Error();
+        }
+        ThreadBridges.Remove(registration.Key);
+
+        if (detached)
+        {
+            RuntimeLog.Info(
+                $"Persistent Firefox input bridge detached after last dock. WorkspaceThread={registration.Key.WorkspaceThreadId}; BrowserThread={registration.Key.BrowserThreadId}; " +
+                $"PID={registration.BrowserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; BridgeRefCount=0; Reason='{reason}'");
+        }
+        else
+        {
+            RuntimeLog.Warn(
+                $"Persistent Firefox input bridge detach failed after last dock. WorkspaceThread={registration.Key.WorkspaceThreadId}; BrowserThread={registration.Key.BrowserThreadId}; " +
+                $"PID={registration.BrowserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={detachError}; Reason='{reason}'");
+        }
+    }
+
     private static bool RequestInputLanguageChangeLocked(IntPtr browserHwnd, uint browserThreadId, uint browserPid, IntPtr requestedHkl, IntPtr previousBrowserHkl, string reason)
     {
         Marshal.SetLastPInvokeError(0);
@@ -191,11 +296,6 @@ internal static class FirefoxInputCoordinator
         return posted;
     }
 
-    /// <summary>
-    /// Called by the existing one-second Browser health loop. It logs only when observable
-    /// input state changes, so focus ownership and English/number -> Zhuyin transitions are
-    /// visible without flooding the runtime log every second.
-    /// </summary>
     internal static void ProbeState(IntPtr browserHwnd, uint workspaceThreadId, string reason)
     {
         if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd)) return;
@@ -210,12 +310,14 @@ internal static class FirefoxInputCoordinator
             if (LastSnapshots.TryGetValue(browserHwnd, out var previous) && previous == snapshot) return;
 
             LastSnapshots[browserHwnd] = snapshot;
+            var key = new BridgeKey(workspaceThreadId, browserThreadId);
+            ThreadBridges.TryGetValue(key, out var bridge);
             RuntimeLog.Info(
                 $"Firefox input-state transition observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; PID={browserPid}; " +
                 $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; " +
+                $"PersistentInputBridgeAttached={bridge?.Attached ?? false}; BridgeRefCount={bridge?.RefCount ?? 0}; " +
                 $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(snapshot.WorkspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(snapshot.BrowserHkl)}; " +
-                $"InputLanguageMismatch={snapshot.WorkspaceHkl != snapshot.BrowserHkl}; " +
-                $"Foreground=0x{snapshot.Foreground.ToInt64():X}; GuiInfoOk={snapshot.GuiInfoOk}; " +
+                $"InputLanguageMismatch={snapshot.WorkspaceHkl != snapshot.BrowserHkl}; Foreground=0x{snapshot.Foreground.ToInt64():X}; GuiInfoOk={snapshot.GuiInfoOk}; " +
                 $"GuiActive=0x{snapshot.GuiActive.ToInt64():X}; GuiFocus=0x{snapshot.GuiFocus.ToInt64():X}; GuiCaret=0x{snapshot.GuiCaret.ToInt64():X}; Reason='{reason}'");
         }
     }
@@ -226,6 +328,10 @@ internal static class FirefoxInputCoordinator
         lock (Sync)
         {
             LastSnapshots.Remove(browserHwnd);
+            if (DockRegistrations.TryGetValue(browserHwnd, out var registration))
+            {
+                ReleaseRegistrationLocked(browserHwnd, registration, "FirefoxInputCoordinator.Forget");
+            }
             if (_activeBrowserHwnd == browserHwnd)
             {
                 _activeBrowserHwnd = IntPtr.Zero;
@@ -253,6 +359,23 @@ internal static class FirefoxInputCoordinator
             gui.hwndActive,
             gui.hwndFocus,
             gui.hwndCaret);
+    }
+
+    private readonly record struct BridgeKey(uint WorkspaceThreadId, uint BrowserThreadId);
+    private readonly record struct DockRegistration(BridgeKey Key, uint BrowserPid);
+
+    private sealed class ThreadBridgeState
+    {
+        internal ThreadBridgeState(bool bridgeRequired, uint browserPid)
+        {
+            BridgeRequired = bridgeRequired;
+            BrowserPid = browserPid;
+        }
+
+        internal bool BridgeRequired { get; }
+        internal uint BrowserPid { get; }
+        internal int RefCount { get; set; }
+        internal bool Attached { get; set; }
     }
 
     private readonly record struct InputSnapshot(

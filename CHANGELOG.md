@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.6rc17
+
+- replace rc16 one-shot attach/focus/detach transactions with one central persistent `AttachThreadInput` bridge per unique Workspace-thread / Firefox-thread pair;
+- register each dock centrally and reference-count all Browser roots sharing the same Firefox input thread;
+- keep the bridge connected while any dock on that thread remains, and detach it only when the final registered dock is removed;
+- keep persistent bridge ownership out of `BrowserDockHost` so individual pane lifecycle cannot detach a bridge still required by sibling Browser panes;
+- switch B1/B2/B3/B4 input ownership with root-HWND `SetFocus` only while the shared input queues remain connected;
+- use `WM_PARENTNOTIFY` mouse-down as the single native focus handoff and suppress the duplicate `WM_MOUSEACTIVATE` focus transaction;
+- retain active-Browser layout recovery, Show IDs handling, request-based HKL synchronization, Firefox child-HWND focus-guessing removal, and non-proxy IME design;
+- add regression coverage and a real-machine gate specifically for text routing across B3 → B1 → B2 → B4 → B3 without input remaining stuck in the previous Browser;
+- stamp application/build/run/test metadata as `v0.0.6rc17` / `0.0.6-rc17` / FileVersion `0.0.6.17`;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc16
 
 - centralize active docked Firefox root-HWND ownership in `FirefoxInputCoordinator`;

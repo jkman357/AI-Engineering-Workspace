@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc16**
+Current version: **v0.0.6rc17**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -23,7 +23,7 @@ Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
 │  ├─ real Firefox HWND docking
 │  ├─ Firefox-native address bar / web-content focus
-│  ├─ transactional root-HWND focus handoff
+│  ├─ shared Firefox-thread input bridge + root-HWND focus handoff
 │  ├─ Workspace maximize / restore
 │  ├─ Launch + Dock / Dock Existing / Focus / Detach
 │  └─ per-window lifecycle ownership
@@ -43,21 +43,19 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
-## v0.0.6rc16 — Native Firefox Activation Coordination
+## v0.0.6rc17 — Shared Firefox Thread Input Bridge
 
-rc15 real-machine testing showed that Firefox focus handoff can succeed at dock time and then be lost again when WPF regains foreground/focus during later pane creation, Auto Fit, Show IDs, or other Workspace transitions. Opening more Browser panes made the symptom easier to reproduce, and deleting/reopening panes could temporarily recover input because a new dock transaction focused Firefox again.
+rc16 proved that native pane detection was working: clicks on B1/B2/B3/B4 were observed and `ActiveBrowserHWND` changed to the clicked Firefox root. The remaining failure was input routing after each temporary bridge was detached. All docked Firefox roots in the reproduced run shared one Firefox GUI/input thread, so rc17 moves bridge lifetime from the pane level to the unique `(Workspace UI thread, Firefox input thread)` pair.
 
-rc16 treats this as one ownership problem instead of separate Browser-count, Show IDs, maximize, and IME defects:
+- the first dock on a Firefox input thread creates one persistent `AttachThreadInput` bridge;
+- additional Browser panes on the same Firefox thread increment a central reference count instead of attaching again;
+- switching Browser panes uses only `SetFocus` on the clicked Firefox root while the thread bridge remains connected;
+- closing a Browser decrements the bridge reference count, and the bridge is detached only after the last dock on that Firefox thread is removed;
+- `BrowserDockHost` still owns no persistent bridge state, so one pane cannot tear down a bridge still used by another pane;
+- `WM_PARENTNOTIFY` mouse-down is the single native Browser activation/focus path; `WM_MOUSEACTIVATE` remains diagnostic-only to avoid doing two focus handoffs for one click;
+- active-root HKL synchronization remains request-based (`WM_INPUTLANGCHANGEREQUEST`) and the application still does not synthesize IME composition or guess Firefox child HWNDs.
 
-- `FirefoxInputCoordinator` records one active docked Firefox root HWND;
-- `BrowserDockHost` observes native `WM_PARENTNOTIFY` mouse-down / `WM_MOUSEACTIVATE` notifications and performs the existing one-shot `AttachThreadInput` -> `SetFocus` -> detach handoff when the user actually clicks Firefox;
-- WPF Browser chrome and native Browser clicks update the same central active-root ownership;
-- File-pane activation clears active-Browser ownership so later Workspace transitions do not steal focus away from File Manager;
-- Show IDs, Auto Fit/layout toggle, Add Browser, Workspace viewport resize, and Browser maximize/restore recover only the recorded active Browser after layout/repaint completes;
-- when the WPF thread accepts a new input language, rc16 posts `WM_INPUTLANGCHANGEREQUEST` only to the active Firefox root if the Firefox thread HKL is stale;
-- rc16 still does not enumerate guessed Firefox child HWNDs, call `ActivateKeyboardLayout`, or synthesize `WM_IME_COMPOSITION`.
-
-The rc16 acceptance gate stresses B1-B8, repeated cross-pane typing, Show IDs on/off, close/reopen cycles, English/number and Zhuyin switching, and maximize/restore without requiring the `⌖` Focus recovery button.
+The rc17 acceptance gate starts with repeated B3 → B1 → B2 → B4 → B3 switching and verifies that text remains in the clicked Browser instead of continuing to route to the previously active pane. It then repeats the existing Show IDs, layout, close/reopen, English/number, and Zhuyin checks.
 
 ## v0.0.6rc15 — Browser Maximize / Restore Focus Recovery
 
@@ -105,7 +103,7 @@ finally: DetachThreadInput
 Firefox owns address-bar / page / ChatGPT prompt focus
 ```
 
-There is no persistent per-pane input bridge state. Normal Browser input does not enumerate, rank, or force focus into guessed Firefox compositor/content child HWNDs. `TabIntoCore` and the `Focus` toolbar action remain root-HWND recovery paths only.
+There is no persistent per-pane input bridge state. rc17 keeps one reference-counted bridge per unique Workspace/Firefox input-thread pair while one or more docked Firefox roots use that pair. Normal Browser input does not enumerate, rank, or force focus into guessed Firefox compositor/content child HWNDs. `TabIntoCore` and the `Focus` toolbar action remain root-HWND recovery paths only.
 
 The rc12 New Workspace behavior is retained: a clean Workspace gets an explicit Create New / Cancel confirmation; a dirty Workspace retains Save / Discard / Cancel semantics before reset. The default reset remains F1/F2 + B1-B4, Auto Fit, Google Browser startup, reset feedback, and no Browser session persistence.
 
@@ -131,7 +129,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc16.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc17.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 
