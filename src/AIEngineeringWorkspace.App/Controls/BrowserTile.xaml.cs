@@ -110,6 +110,7 @@ public partial class BrowserTile : UserControl
         RuntimeLog.Info($"[{Identity.Alias}] Shutdown requested. PaneId={Identity.PaneId:D}; WorkspaceLaunchedWindows={_workspaceLaunchedWindows.Count}; DockedHWND=0x{BrowserHost.BrowserHwnd.ToInt64():X}");
 
         _launchCts?.Cancel();
+        _firefox.CleanupPendingLaunchOnShutdown(Identity.Alias);
         _launchCts?.Dispose();
         _launchCts = null;
 

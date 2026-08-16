@@ -1,15 +1,20 @@
-fix: complete Auto Fit, native HWND repaint, and Git status UI in v0.0.6rc08
+fix: harden rc08 review findings in v0.0.6rc09
 
 - continue the active v0.0.6 RC line without freezing or advancing the version
-- make Auto Fit own the visible viewport geometry instead of preserving stale Free Layout canvas dimensions
-- make a single remaining File or Browser pane automatically fill the Workspace from the top-left without manual maximize
-- keep multi-pane Auto Fit deterministic and reset stale horizontal/vertical scroll offsets after reflow
-- suppress intermediate Firefox redraw while committing foreign child-HWND geometry with SetWindowPos
-- perform a stronger final repaint across the Firefox HWND, native host HWND, and WPF parent HWND to reduce stale pixels after resize/maximize/reflow
-- invalidate and update the native host chain after final geometry changes while retaining Firefox as the browser/navigation authority
-- detect Git repository-root folders when browsing a non-repository parent directory such as Desktop or the user profile
-- show visible repository summary badges for clean, modified, added/untracked, and deleted working-tree state
-- retain read-only local git.exe status probing for files/folders inside repositories
-- retain native Windows Shell context menus so registered 7-Zip, compare, TortoiseGit, Open With, Properties, and other Shell extensions remain available
-- retain endpoint identity badges, Free Layout move/resize, browser lifecycle ownership, standard-user design, API-free architecture, diagnostics/security wording, and the MIT License unchanged
-- update README, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc08
+- replace Auto Fit fixed grid sizing with a minimum-size-aware layout planner so pane placement stride and actual pane dimensions cannot overlap
+- enlarge the Auto Fit Canvas and allow scrolling when supported pane counts physically cannot fit the current viewport
+- keep the single-pane Auto Fit invariant that one remaining pane fills the Workspace
+- move Git status/repository probing off the WPF dispatcher so file/folder entries render before Git decoration completes
+- add cancellable Git probes, navigation-generation guards, short snapshot caching, and cancellation-aware git.exe process waits
+- prevent stale Git results from a previous folder navigation from updating the current File pane
+- fix porcelain v1 -z rename/copy parsing to keep the current/destination path and only consume the following old/source path
+- collapse the Git overlay when GitGlyph is empty so non-Git items do not show blank badge boxes
+- treat Firefox launch as a pending transaction inside FirefoxWindowService immediately after Process.Start
+- add synchronous Workspace-shutdown cleanup for a pending Firefox launch before HWND discovery/BrowserTile ownership recording completes
+- clean ambiguous, canceled, and timeout launch transaction candidates while preserving the pre-launch Firefox HWND baseline
+- centralize executable version authority in Directory.Build.props and derive application/build/run/test version labels from assembly/build metadata
+- stamp rc09 as Version 0.0.6-rc09, FileVersion 0.0.6.9, and InformationalVersion v0.0.6rc09
+- add a dependency-free AIEngineeringWorkspace.Tests regression project and root test.cmd
+- add regression checks for 12-pane Auto Fit non-overlap, single-pane fill, Git rename destination parsing, empty Git-badge collapse markup, and rc09 version consistency
+- update README, CHANGELOG, rc09 release notes, solution/project structure, scripts, and diagnostics folders
+- retain native Windows Shell context menus, TortoiseGit/7-Zip/compare Shell integration, Firefox HWND docking, security/privacy wording, standard-user design, API-free architecture, and the MIT License unchanged

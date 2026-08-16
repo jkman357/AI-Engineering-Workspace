@@ -10,6 +10,9 @@ internal sealed class FirefoxWindowService
 {
     private const string DefaultUrl = "https://www.google.com/";
     private static readonly SemaphoreSlim LaunchGate = new(1, 1);
+    private readonly object _pendingLaunchSync = new();
+    private HashSet<IntPtr>? _pendingLaunchBaseline;
+    private bool _pendingLaunchActive;
 
     public IReadOnlyList<BrowserWindowInfo> FindFirefoxWindows()
     {
@@ -81,16 +84,20 @@ internal sealed class FirefoxWindowService
         RuntimeLog.Info($"[{requester}] Waiting for Firefox launch serialization gate.");
         await LaunchGate.WaitAsync(cancellationToken);
 
+        HashSet<IntPtr>? before = null;
+        IReadOnlyList<BrowserWindowInfo>? beforeWindows = null;
+        var launchStarted = false;
+
         try
         {
             RuntimeLog.Info($"[{requester}] Firefox launch serialization gate acquired.");
 
             var targetUrl = string.IsNullOrWhiteSpace(url) ? DefaultUrl : url.Trim();
-            var beforeWindows = FindFirefoxWindows();
-            var before = beforeWindows.Select(w => w.Hwnd).ToHashSet();
+            beforeWindows = FindFirefoxWindows();
+            before = beforeWindows.Select(w => w.Hwnd).ToHashSet();
             var firefoxPath = ResolveFirefoxPath();
 
-            RuntimeLog.Info($"[{requester}] Launching Firefox. Executable='{firefoxPath}', URL='{targetUrl}', ExistingTopLevelWindows={beforeWindows.Count}, Existing={DescribeWindows(beforeWindows)}");
+            RuntimeLog.Info($"[{requester}] Launching Firefox transaction. Executable='{firefoxPath}', URL='{targetUrl}', ExistingTopLevelWindows={beforeWindows.Count}, Existing={DescribeWindows(beforeWindows)}");
 
             var safeUrl = targetUrl.Replace("\"", string.Empty, StringComparison.Ordinal);
             var startInfo = new ProcessStartInfo
@@ -100,8 +107,10 @@ internal sealed class FirefoxWindowService
                 UseShellExecute = true
             };
 
-            var process = Process.Start(startInfo);
-            RuntimeLog.Info($"[{requester}] Firefox launch requested. LauncherPID={(process is null ? "n/a" : process.Id)}");
+            using var process = Process.Start(startInfo);
+            launchStarted = true;
+            BeginPendingLaunch(before);
+            RuntimeLog.Info($"[{requester}] Firefox launch requested. LauncherPID={(process is null ? "n/a" : process.Id)}; PendingOwnership=true");
 
             var deadline = DateTime.UtcNow.AddSeconds(12);
             while (DateTime.UtcNow < deadline)
@@ -114,32 +123,161 @@ internal sealed class FirefoxWindowService
                 if (newWindows.Count == 1)
                 {
                     var newWindow = newWindows[0];
-                    RuntimeLog.Info($"[{requester}] New Firefox window isolated. PID={newWindow.ProcessId}; HWND={newWindow.HwndHex}; Title='{newWindow.Title}'");
+                    RuntimeLog.Info($"[{requester}] Firefox launch transaction resolved. PID={newWindow.ProcessId}; HWND={newWindow.HwndHex}; Title='{newWindow.Title}'; PendingOwnership=false");
+                    CompletePendingLaunch();
                     return newWindow;
                 }
 
                 if (newWindows.Count > 1)
                 {
-                    RuntimeLog.Warn($"[{requester}] Launch produced multiple new Firefox HWND candidates; refusing to guess. Candidates={DescribeWindows(newWindows)}");
+                    RuntimeLog.Warn($"[{requester}] Launch produced multiple new Firefox HWND candidates; refusing to guess and cleaning transaction candidates. Candidates={DescribeWindows(newWindows)}");
+                    CloseTransactionCandidates(newWindows, requester, "ambiguous launch");
+                    CompletePendingLaunch();
                     return null;
                 }
             }
 
             var afterWindows = FindFirefoxWindows();
+            var afterNewWindows = afterWindows.Where(w => !before.Contains(w.Hwnd)).ToList();
             if (beforeWindows.Count == 0 && afterWindows.Count == 1)
             {
                 var onlyWindow = afterWindows[0];
                 RuntimeLog.Warn($"[{requester}] No new-HWND transition was observed, but exactly one Firefox window exists after launch. Using safe single candidate HWND={onlyWindow.HwndHex}; PID={onlyWindow.ProcessId}; Title='{onlyWindow.Title}'.");
+                CompletePendingLaunch();
                 return onlyWindow;
             }
 
-            RuntimeLog.Error($"[{requester}] Could not safely isolate the Firefox window created by launch. Before={beforeWindows.Count}; After={afterWindows.Count}; AfterCandidates={DescribeWindows(afterWindows)}");
+            RuntimeLog.Error($"[{requester}] Could not safely isolate the Firefox window created by launch. Before={beforeWindows.Count}; After={afterWindows.Count}; NewCandidates={DescribeWindows(afterNewWindows)}");
+            CloseTransactionCandidates(afterNewWindows, requester, "launch timeout");
+            CompletePendingLaunch();
             return null;
+        }
+        catch (OperationCanceledException) when (launchStarted && before is not null)
+        {
+            RuntimeLog.Warn($"[{requester}] Firefox launch transaction canceled after Process.Start; pending launch cleanup started inside FirefoxWindowService.");
+            await CleanupCanceledLaunchAsync(before, requester);
+            throw;
         }
         finally
         {
             LaunchGate.Release();
             RuntimeLog.Info($"[{requester}] Firefox launch serialization gate released.");
+        }
+    }
+
+    public void CleanupPendingLaunchOnShutdown(string requester, int graceMilliseconds = 3000)
+    {
+        var baseline = TakePendingLaunchBaseline();
+        if (baseline is null)
+        {
+            return;
+        }
+
+        RuntimeLog.Warn($"[{requester}] Shutdown claimed a pending Firefox launch transaction for synchronous cleanup.");
+        var deadline = Environment.TickCount64 + Math.Max(0, graceMilliseconds);
+        var observed = new Dictionary<IntPtr, BrowserWindowInfo>();
+        do
+        {
+            foreach (var window in FindFirefoxWindows().Where(w => !baseline.Contains(w.Hwnd)))
+            {
+                observed[window.Hwnd] = window;
+            }
+
+            if (observed.Count > 0 || Environment.TickCount64 >= deadline)
+            {
+                break;
+            }
+
+            Thread.Sleep(100);
+        } while (true);
+
+        if (observed.Count > 0)
+        {
+            CloseTransactionCandidates(observed.Values, requester, "Workspace shutdown pending launch");
+        }
+        else
+        {
+            RuntimeLog.Warn($"[{requester}] Shutdown pending-launch cleanup found no new Firefox HWND within {graceMilliseconds} ms; existing Firefox windows were left untouched.");
+        }
+    }
+
+    private void BeginPendingLaunch(HashSet<IntPtr> baseline)
+    {
+        lock (_pendingLaunchSync)
+        {
+            _pendingLaunchBaseline = new HashSet<IntPtr>(baseline);
+            _pendingLaunchActive = true;
+        }
+    }
+
+    private void CompletePendingLaunch()
+    {
+        lock (_pendingLaunchSync)
+        {
+            _pendingLaunchActive = false;
+            _pendingLaunchBaseline = null;
+        }
+    }
+
+    private HashSet<IntPtr>? TakePendingLaunchBaseline()
+    {
+        lock (_pendingLaunchSync)
+        {
+            if (!_pendingLaunchActive || _pendingLaunchBaseline is null)
+            {
+                return null;
+            }
+
+            var baseline = _pendingLaunchBaseline;
+            _pendingLaunchActive = false;
+            _pendingLaunchBaseline = null;
+            return baseline;
+        }
+    }
+
+    private async Task CleanupCanceledLaunchAsync(HashSet<IntPtr> before, string requester)
+    {
+        var claimed = TakePendingLaunchBaseline();
+        if (claimed is null)
+        {
+            RuntimeLog.Info($"[{requester}] Pending launch cleanup already claimed by shutdown or a previous cleanup path.");
+            return;
+        }
+
+        before = claimed;
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        var observed = new Dictionary<IntPtr, BrowserWindowInfo>();
+
+        while (DateTime.UtcNow < deadline)
+        {
+            foreach (var window in FindFirefoxWindows().Where(w => !before.Contains(w.Hwnd)))
+            {
+                observed[window.Hwnd] = window;
+            }
+
+            if (observed.Count > 0)
+            {
+                break;
+            }
+
+            await Task.Delay(150);
+        }
+
+        if (observed.Count == 0)
+        {
+            RuntimeLog.Warn($"[{requester}] Pending launch cleanup found no new Firefox HWND during grace period. No existing Firefox window was touched.");
+            return;
+        }
+
+        CloseTransactionCandidates(observed.Values, requester, "canceled pending launch");
+    }
+
+    private void CloseTransactionCandidates(IEnumerable<BrowserWindowInfo> windows, string requester, string reason)
+    {
+        foreach (var window in windows)
+        {
+            RuntimeLog.Warn($"[{requester}] Cleaning Workspace launch transaction window. Reason='{reason}'; PID={window.ProcessId}; HWND={window.HwndHex}; Title='{window.Title}'");
+            RequestCloseWindow(window, requester);
         }
     }
 

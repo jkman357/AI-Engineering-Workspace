@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using AIEngineeringWorkspace.Infrastructure;
 
@@ -6,36 +7,47 @@ namespace AIEngineeringWorkspace.FileManager;
 internal static class GitStatusService
 {
     private const int CommandTimeoutMs = 1800;
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(5);
+    private static readonly ConcurrentDictionary<string, CacheEntry> SnapshotCache = new(StringComparer.OrdinalIgnoreCase);
 
-    internal static GitFolderSnapshot TryReadFolder(string folderPath)
+    internal static GitFolderSnapshot TryReadFolder(string folderPath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
         {
             return GitFolderSnapshot.NotRepository;
         }
 
+        var cacheKey = Normalize(folderPath);
+        if (SnapshotCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresUtc > DateTime.UtcNow)
+        {
+            return cached.Snapshot;
+        }
+
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!HasGitMarkerInAncestry(folderPath))
             {
-                return GitFolderSnapshot.NotRepository;
+                var none = GitFolderSnapshot.NotRepository;
+                SnapshotCache[cacheKey] = new CacheEntry(DateTime.UtcNow + CacheLifetime, none);
+                return none;
             }
 
-            var repoRoot = RunGit(folderPath, "rev-parse --show-toplevel");
+            var repoRoot = RunGit(folderPath, "rev-parse --show-toplevel", cancellationToken);
             if (!repoRoot.Success || string.IsNullOrWhiteSpace(repoRoot.Output))
             {
                 return GitFolderSnapshot.NotRepository;
             }
 
             var root = Path.GetFullPath(repoRoot.Output.Trim());
-            var statusResult = RunGit(root, "status --porcelain=v1 -z --untracked-files=all");
-            var trackedResult = RunGit(root, "ls-files -z");
+            var statusResult = RunGit(root, "status --porcelain=v1 -z --untracked-files=all", cancellationToken);
+            var trackedResult = RunGit(root, "ls-files -z", cancellationToken);
             if (!statusResult.Success || !trackedResult.Success)
             {
                 return new GitFolderSnapshot(root, new Dictionary<string, GitPathState>(StringComparer.OrdinalIgnoreCase), false);
             }
 
-            var changed = ParsePorcelain(root, statusResult.Output);
+            var changed = GitPorcelainParser.Parse(root, statusResult.Output);
             var tracked = ParseNullSeparatedPaths(root, trackedResult.Output);
             var states = new Dictionary<string, GitPathState>(StringComparer.OrdinalIgnoreCase);
 
@@ -49,7 +61,14 @@ internal static class GitStatusService
                 MergeState(states, path, state);
             }
 
-            return new GitFolderSnapshot(root, states, true);
+            var snapshot = new GitFolderSnapshot(root, states, true);
+            SnapshotCache[cacheKey] = new CacheEntry(DateTime.UtcNow + CacheLifetime, snapshot);
+            SnapshotCache[Normalize(root)] = new CacheEntry(DateTime.UtcNow + CacheLifetime, snapshot);
+            return snapshot;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -58,7 +77,7 @@ internal static class GitStatusService
         }
     }
 
-    internal static GitDecoration GetDecoration(GitFolderSnapshot snapshot, string fullPath, bool isDirectory)
+    internal static GitDecoration GetDecoration(GitFolderSnapshot snapshot, string fullPath, bool isDirectory, CancellationToken cancellationToken = default)
     {
         var target = Normalize(fullPath);
 
@@ -67,7 +86,7 @@ internal static class GitStatusService
         // repository roots so repository status is still visible without first entering them.
         if (!snapshot.IsRepository || string.IsNullOrWhiteSpace(snapshot.RepositoryRoot))
         {
-            return isDirectory ? TryGetRepositoryRootDecoration(target) : GitDecoration.None;
+            return isDirectory ? TryGetRepositoryRootDecoration(target, cancellationToken) : GitDecoration.None;
         }
 
         if (!isDirectory)
@@ -95,14 +114,15 @@ internal static class GitStatusService
         return aggregate == GitPathState.None ? GitDecoration.None : ToDecoration(aggregate);
     }
 
-    private static GitDecoration TryGetRepositoryRootDecoration(string directoryPath)
+    private static GitDecoration TryGetRepositoryRootDecoration(string directoryPath, CancellationToken cancellationToken)
     {
         if (!HasDirectGitMarker(directoryPath))
         {
             return GitDecoration.None;
         }
 
-        var repo = TryReadFolder(directoryPath);
+        cancellationToken.ThrowIfCancellationRequested();
+        var repo = TryReadFolder(directoryPath, cancellationToken);
         if (!repo.IsRepository)
         {
             return new GitDecoration("G", "Git repository detected; working-tree status unavailable");
@@ -165,38 +185,6 @@ internal static class GitStatusService
         }
 
         return false;
-    }
-
-    private static Dictionary<string, GitPathState> ParsePorcelain(string root, string raw)
-    {
-        var result = new Dictionary<string, GitPathState>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrEmpty(raw))
-        {
-            return result;
-        }
-
-        var records = raw.Split('\0', StringSplitOptions.RemoveEmptyEntries);
-        for (var i = 0; i < records.Length; i++)
-        {
-            var record = records[i];
-            if (record.Length < 4)
-            {
-                continue;
-            }
-
-            var xy = record[..2];
-            var pathPart = record[3..];
-            if ((xy.Contains('R') || xy.Contains('C')) && i + 1 < records.Length)
-            {
-                pathPart = records[++i];
-            }
-
-            var state = StateFromCode(xy);
-            var absolute = Normalize(Path.Combine(root, pathPart.Replace('/', Path.DirectorySeparatorChar)));
-            MergeState(result, absolute, state);
-        }
-
-        return result;
     }
 
     private static HashSet<string> ParseNullSeparatedPaths(string root, string raw)
@@ -272,7 +260,7 @@ internal static class GitStatusService
     private static string Normalize(string path)
         => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-    private static GitCommandResult RunGit(string workingDirectory, string arguments)
+    private static GitCommandResult RunGit(string workingDirectory, string arguments, CancellationToken cancellationToken)
     {
         using var process = new Process
         {
@@ -301,10 +289,15 @@ internal static class GitStatusService
 
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(CommandTimeoutMs))
+        var stopwatch = Stopwatch.StartNew();
+        while (!process.WaitForExit(100))
         {
-            try { process.Kill(true); } catch { }
-            return GitCommandResult.Failed;
+            if (cancellationToken.IsCancellationRequested || stopwatch.ElapsedMilliseconds >= CommandTimeoutMs)
+            {
+                try { process.Kill(true); } catch { }
+                cancellationToken.ThrowIfCancellationRequested();
+                return GitCommandResult.Failed;
+            }
         }
 
         Task.WaitAll(new Task[] { outputTask, errorTask }, 500);
@@ -312,27 +305,10 @@ internal static class GitStatusService
         return process.ExitCode == 0 ? new GitCommandResult(true, output) : GitCommandResult.Failed;
     }
 
+    private readonly record struct CacheEntry(DateTime ExpiresUtc, GitFolderSnapshot Snapshot);
+
     private readonly record struct GitCommandResult(bool Success, string Output)
     {
         internal static GitCommandResult Failed => new(false, string.Empty);
     }
-}
-
-internal enum GitPathState
-{
-    None,
-    Clean,
-    Added,
-    Modified,
-    Deleted
-}
-
-internal readonly record struct GitDecoration(string Glyph, string Tooltip)
-{
-    internal static GitDecoration None => new(string.Empty, string.Empty);
-}
-
-internal sealed record GitFolderSnapshot(string? RepositoryRoot, IReadOnlyDictionary<string, GitPathState> States, bool IsRepository)
-{
-    internal static GitFolderSnapshot NotRepository { get; } = new(null, new Dictionary<string, GitPathState>(), false);
 }

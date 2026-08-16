@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Review Hardening";
 
         _healthTimer = new DispatcherTimer
         {
@@ -449,7 +451,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Auto Fit owns geometry. Never preserve stale Free Layout coordinates here.
         var panes = GetAllPanes()
             .OrderBy(p => p is FilePane ? 0 : 1)
             .ThenBy(p => p switch
@@ -460,102 +461,33 @@ public partial class MainWindow : Window
             })
             .ToList();
 
-        if (panes.Count == 0)
+        var viewportWidth = WorkspaceScrollViewer.ViewportWidth > 1
+            ? WorkspaceScrollViewer.ViewportWidth - 2
+            : Math.Max(1, WorkspaceScrollViewer.ActualWidth - 2);
+        var viewportHeight = WorkspaceScrollViewer.ViewportHeight > 1
+            ? WorkspaceScrollViewer.ViewportHeight - 2
+            : Math.Max(1, WorkspaceScrollViewer.ActualHeight - 2);
+
+        var specs = panes
+            .Select(p => new AutoFitPaneSpec(Math.Max(1, p.MinWidth), Math.Max(1, p.MinHeight)))
+            .ToArray();
+        var plan = AutoFitLayoutPlanner.Plan(viewportWidth, viewportHeight, specs, PaneGap, maxColumns: 4);
+
+        WorkspaceCanvas.Width = plan.CanvasWidth;
+        WorkspaceCanvas.Height = plan.CanvasHeight;
+
+        for (var index = 0; index < panes.Count; index++)
         {
-            WorkspaceCanvas.Width = Math.Max(1, WorkspaceScrollViewer.ViewportWidth);
-            WorkspaceCanvas.Height = Math.Max(1, WorkspaceScrollViewer.ViewportHeight);
-            return;
-        }
+            var pane = panes[index];
+            var cell = plan.Cells[index];
+            pane.Visibility = Visibility.Visible;
+            pane.Width = cell.Width;
+            pane.Height = cell.Height;
+            SetPanePosition(pane, new Point(cell.X, cell.Y));
 
-        var viewportWidth = WorkspaceScrollViewer.ViewportWidth;
-        var viewportHeight = WorkspaceScrollViewer.ViewportHeight;
-        if (viewportWidth <= 1)
-        {
-            viewportWidth = Math.Max(1, WorkspaceScrollViewer.ActualWidth - 2);
-        }
-        if (viewportHeight <= 1)
-        {
-            viewportHeight = Math.Max(1, WorkspaceScrollViewer.ActualHeight - 2);
-        }
-
-        // Keep the Auto Fit surface equal to the visible viewport so ScrollViewer alignment,
-        // stale Free Layout canvas size, and old scroll offsets cannot create visual holes.
-        var surfaceWidth = Math.Max(1, viewportWidth - 2);
-        var surfaceHeight = Math.Max(1, viewportHeight - 2);
-        WorkspaceCanvas.Width = surfaceWidth;
-        WorkspaceCanvas.Height = surfaceHeight;
-
-        if (panes.Count == 1)
-        {
-            // A single pane is the workspace. Fill it completely without requiring manual maximize.
-            var only = panes[0];
-            only.Visibility = Visibility.Visible;
-            only.Width = Math.Max(only.MinWidth, surfaceWidth);
-            only.Height = Math.Max(only.MinHeight, surfaceHeight);
-            SetPanePosition(only, new Point(0, 0));
-
-            WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
-            WorkspaceScrollViewer.ScrollToVerticalOffset(0);
-
-            if (only is BrowserTile singleBrowser)
+            if (pane is BrowserTile browser)
             {
-                singleBrowser.FitBrowserToPane();
-            }
-
-            Dispatcher.InvokeAsync(() =>
-            {
-                WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
-                WorkspaceScrollViewer.ScrollToVerticalOffset(0);
-                if (only is BrowserTile browser)
-                {
-                    browser.FitBrowserToPane();
-                    browser.FinalizeBrowserRepaint();
-                }
-            }, DispatcherPriority.Render);
-
-            RuntimeLog.Info($"Auto Fit single-pane fill applied. Pane={GetAlias(only)}; Surface={surfaceWidth:0}x{surfaceHeight:0}; Position=0,0; ScrollReset=0,0");
-            return;
-        }
-
-        var columns = panes.Count switch
-        {
-            2 => 2,
-            3 => 3,
-            4 => 2,
-            <= 6 => 3,
-            <= 8 => 4,
-            9 => 3,
-            _ => 4
-        };
-        var rows = (int)Math.Ceiling(panes.Count / (double)columns);
-        var availableHeight = surfaceHeight - (PaneGap * 2) - (PaneGap * Math.Max(0, rows - 1));
-        var rowHeight = Math.Max(1, availableHeight / rows);
-
-        var index = 0;
-        for (var row = 0; row < rows; row++)
-        {
-            var remaining = panes.Count - index;
-            var itemsInRow = Math.Min(columns, remaining);
-            var availableWidth = surfaceWidth - (PaneGap * 2) - (PaneGap * Math.Max(0, itemsInRow - 1));
-            var cellWidth = Math.Max(1, availableWidth / itemsInRow);
-            var y = PaneGap + (row * (rowHeight + PaneGap));
-
-            for (var column = 0; column < itemsInRow; column++)
-            {
-                var pane = panes[index++];
-                var x = PaneGap + (column * (cellWidth + PaneGap));
-                var width = Math.Max(pane.MinWidth, cellWidth);
-                var height = Math.Max(pane.MinHeight, rowHeight);
-
-                pane.Visibility = Visibility.Visible;
-                pane.Width = width;
-                pane.Height = height;
-                SetPanePosition(pane, new Point(x, y));
-
-                if (pane is BrowserTile browser)
-                {
-                    browser.FitBrowserToPane();
-                }
+                browser.FitBrowserToPane();
             }
         }
 
@@ -573,7 +505,7 @@ public partial class MainWindow : Window
             }
         }, DispatcherPriority.Render);
 
-        RuntimeLog.Info($"Auto Fit applied from origin. Panes={panes.Count}; Grid={columns}x{rows}; Surface={surfaceWidth:0}x{surfaceHeight:0}; ScrollReset=0,0");
+        RuntimeLog.Info($"Auto Fit applied. Panes={panes.Count}; Grid={plan.Columns}x{plan.Rows}; Viewport={viewportWidth:0}x{viewportHeight:0}; Canvas={plan.CanvasWidth:0}x{plan.CanvasHeight:0}; ScrollRequired={plan.RequiresScrolling}; ScrollReset=0,0");
     }
 
     private void ToggleBrowserPaneMaximize(BrowserTile tile)

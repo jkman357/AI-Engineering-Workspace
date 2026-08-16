@@ -6,3 +6,4 @@
 *.suo
 logs/build/*.log
 logs/runtime/*.log
+logs/test/*.log

@@ -1,6 +1,12 @@
+using System.Reflection;
+
 namespace AIEngineeringWorkspace.Infrastructure;
 
 internal static class AppInfo
 {
-    public const string DisplayVersion = "v0.0.6rc08";
+    public static string DisplayVersion
+        => Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion
+            ?? "development";
 }

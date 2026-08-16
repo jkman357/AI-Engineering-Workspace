@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc08**
+Current version: **v0.0.6rc09**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -31,6 +31,29 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc09 — Review Hardening
+
+This RC responds to the six findings from the rc08 source review. It does not freeze `v0.0.6` and intentionally adds no new product feature.
+
+### Auto Fit minimum-size invariant
+
+Auto Fit now uses a minimum-size-aware layout planner. Placement stride and pane size come from the same computed cell geometry, so supported pane counts cannot overlap merely because a Browser/File minimum size is larger than the visible viewport cell. When all panes physically cannot fit, Auto Fit enlarges the Canvas and allows scrolling instead of overlapping panes. A single pane still fills the viewport.
+
+### Non-blocking Git decoration
+
+File/folder enumeration is shown first. Git probing then runs off the WPF dispatcher, is cancellable when navigation changes, uses a short snapshot cache, and applies badges only if the result still belongs to the current navigation generation. Git subprocess waits are cancellation-aware and retain the existing timeout guard.
+
+### Firefox pending-launch ownership
+
+Firefox launch is now treated as a launch transaction inside `FirefoxWindowService`. A pending launch records the pre-launch HWND baseline immediately after `Process.Start`. Workspace shutdown can synchronously claim and clean that pending transaction so a Firefox window created during the discovery gap is not left behind merely because the UI continuation never recorded ownership. Cancellation/failure paths also clean newly created transaction candidates without touching the pre-existing Firefox baseline.
+
+### Correctness / release polish
+
+- Git porcelain rename/copy parsing keeps the first `-z` path as the current/destination path and consumes the following old/source path.
+- Empty Git glyphs collapse the overlay instead of drawing a blank badge box.
+- `Directory.Build.props` is the executable version authority for package/file/informational version metadata and the command-line build/run/test labels.
+- a dependency-free regression project is included under `tests/AIEngineeringWorkspace.Tests/`; `test.cmd` exercises Auto Fit overlap invariants, one-pane fill, Git rename parsing, empty-badge XAML, and version consistency.
 
 ## v0.0.6rc08 — Auto-Fit Completion + Native HWND Repaint + Git Status UI
 
@@ -323,6 +346,14 @@ logs\build\build_*.log
 
 The project is intended to remain command-line buildable without opening Visual Studio.
 
+## Regression tests
+
+```bat
+test.cmd
+```
+
+The rc09 test project has no external test-framework package dependency; it is a small executable regression harness so validation remains usable from a clean .NET 10 SDK installation. Test logs are written under `logs\test\`.
+
 ## Run
 
 ```bat
@@ -343,6 +374,15 @@ Launcher/application diagnostics are written under `logs\runtime\` when logging 
 8. Navigate a File pane into a Git working tree. Verify Git badges appear and TortoiseGit Shell commands are available when registered.
 9. Re-test Browser Launch + Dock, normal page keyboard input, Focus recovery, Detach, pane maximize/restore, and Workspace shutdown lifecycle.
 10. If repaint/focus/Shell behavior fails, attach the runtime log and note the pane alias, selected file type (if applicable), and exact action sequence.
+
+## v0.0.6rc09 validation focus
+
+1. Run `build.cmd`, then `test.cmd`; both must return exit code 0 before GUI testing.
+2. Exercise 12 total panes in Auto Fit at a 1280×720-class viewport. Panes may require scrolling, but they must not overlap.
+3. Navigate a File pane to a parent containing several Git repositories. File entries must appear immediately; Git badges may populate afterward without freezing the UI. Quickly navigate away while Git scanning is active and verify stale badges do not overwrite the new folder.
+4. Rename a tracked Git file and verify status follows the new/current path, not the old path. Ordinary non-Git items must not show a blank badge box.
+5. Start `Launch + Dock` and immediately close the Workspace while Firefox discovery is still pending. The Workspace-launched Firefox window must not be left orphaned; pre-existing Firefox windows must remain untouched.
+6. Check executable file/version metadata and logs: rc09 runtime/build artifacts must identify `v0.0.6rc09` / `0.0.6.9`.
 
 ## Current limits / non-goals
 

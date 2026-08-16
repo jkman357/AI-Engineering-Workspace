@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.6rc09
+
+- fix Auto Fit pane overlap by introducing a minimum-size-aware layout planner that enlarges the Canvas and scrolls when the viewport cannot physically contain all panes;
+- move Git probing off the WPF dispatcher so File panes render immediately, then apply cancellable/cached Git decorations asynchronously;
+- make Git subprocess waiting cancellation-aware and prevent stale navigation generations from updating the current File pane;
+- add pending Firefox launch ownership/cleanup inside `FirefoxWindowService`, including synchronous shutdown cleanup for the Process.Start-to-HWND-discovery gap;
+- fix porcelain `R`/`C` parsing so status remains on the current/destination path;
+- collapse the Git badge overlay when no Git glyph exists;
+- centralize executable version metadata in `Directory.Build.props` and derive command-line version labels from it;
+- add a dependency-free regression test project plus `test.cmd` for layout, Git parser, badge, and version invariants;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc08
 
 - make Auto Fit rebuild pane placement deterministically from endpoint identity and reset Workspace scroll offsets to the top-left;

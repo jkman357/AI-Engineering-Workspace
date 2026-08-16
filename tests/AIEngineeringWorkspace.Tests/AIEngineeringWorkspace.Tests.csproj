@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>AIEngineeringWorkspace.Tests</AssemblyName>
+    <RootNamespace>AIEngineeringWorkspace.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\AIEngineeringWorkspace.App\Workspace\AutoFitLayoutPlanner.cs" Link="UnderTest\AutoFitLayoutPlanner.cs" />
+    <Compile Include="..\..\src\AIEngineeringWorkspace.App\FileManager\GitModels.cs" Link="UnderTest\GitModels.cs" />
+    <Compile Include="..\..\src\AIEngineeringWorkspace.App\FileManager\GitPorcelainParser.cs" Link="UnderTest\GitPorcelainParser.cs" />
+  </ItemGroup>
+</Project>

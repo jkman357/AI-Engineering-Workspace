@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <WorkspaceVersionLabel>v0.0.6rc09</WorkspaceVersionLabel>
+    <Version>0.0.6-rc09</Version>
+    <AssemblyVersion>0.0.6.0</AssemblyVersion>
+    <FileVersion>0.0.6.9</FileVersion>
+    <InformationalVersion>v0.0.6rc09</InformationalVersion>
+  </PropertyGroup>
+</Project>

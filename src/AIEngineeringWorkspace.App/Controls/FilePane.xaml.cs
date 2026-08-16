@@ -22,6 +22,8 @@ public partial class FilePane : UserControl
     private string _currentPath = string.Empty;
     private string _sortColumn = "Name";
     private bool _sortAscending = true;
+    private CancellationTokenSource? _gitProbeCts;
+    private int _navigationGeneration;
 
     public event Action<FilePane, string>? StatusChanged;
     public event Action<FilePane>? ClosePaneRequested;
@@ -38,6 +40,12 @@ public partial class FilePane : UserControl
     public FilePane()
     {
         InitializeComponent();
+        Unloaded += (_, _) =>
+        {
+            _gitProbeCts?.Cancel();
+            _gitProbeCts?.Dispose();
+            _gitProbeCts = null;
+        };
     }
 
     internal void Configure(PaneIdentity identity, string initialPath)
@@ -74,15 +82,17 @@ public partial class FilePane : UserControl
                 return;
             }
 
-            var entries = new List<FileEntry>();
-            var gitSnapshot = GitStatusService.TryReadFolder(path);
+            _gitProbeCts?.Cancel();
+            _gitProbeCts?.Dispose();
+            _gitProbeCts = new CancellationTokenSource();
+            var generation = ++_navigationGeneration;
 
+            var entries = new List<FileEntry>();
             foreach (var directory in Directory.EnumerateDirectories(path))
             {
                 try
                 {
                     var info = new DirectoryInfo(directory);
-                    var git = GitStatusService.GetDecoration(gitSnapshot, info.FullName, true);
                     entries.Add(new FileEntry
                     {
                         Name = info.Name,
@@ -93,9 +103,7 @@ public partial class FilePane : UserControl
                         SizeBytes = -1,
                         ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
                         ModifiedTime = info.LastWriteTime,
-                        Icon = ShellIconService.GetSmallIcon(info.FullName),
-                        GitGlyph = git.Glyph,
-                        GitTooltip = git.Tooltip
+                        Icon = ShellIconService.GetSmallIcon(info.FullName)
                     });
                 }
                 catch (Exception ex)
@@ -109,7 +117,6 @@ public partial class FilePane : UserControl
                 try
                 {
                     var info = new FileInfo(file);
-                    var git = GitStatusService.GetDecoration(gitSnapshot, info.FullName, false);
                     entries.Add(new FileEntry
                     {
                         Name = info.Name,
@@ -120,9 +127,7 @@ public partial class FilePane : UserControl
                         SizeBytes = info.Length,
                         ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
                         ModifiedTime = info.LastWriteTime,
-                        Icon = ShellIconService.GetSmallIcon(info.FullName),
-                        GitGlyph = git.Glyph,
-                        GitTooltip = git.Tooltip
+                        Icon = ShellIconService.GetSmallIcon(info.FullName)
                     });
                 }
                 catch (Exception ex)
@@ -137,9 +142,9 @@ public partial class FilePane : UserControl
             _entries.AddRange(entries);
             ApplySort(false);
 
-            var gitSuffix = gitSnapshot.IsRepository ? $" | Git: {Path.GetFileName(gitSnapshot.RepositoryRoot)}" : string.Empty;
-            SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s){gitSuffix}");
-            RuntimeLog.Info($"[{Identity.Alias}] Folder loaded. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}; GitRepository={gitSnapshot.IsRepository}; GitRoot='{gitSnapshot.RepositoryRoot}'");
+            SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s) | Git: scanning…");
+            RuntimeLog.Info($"[{Identity.Alias}] Folder loaded without blocking Git probe. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}; Generation={generation}");
+            _ = RefreshGitDecorationsAsync(path, generation, _gitProbeCts.Token);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -152,6 +157,68 @@ public partial class FilePane : UserControl
             SetStatus($"Unable to load folder: {ex.Message}");
         }
     }
+
+    private async Task RefreshGitDecorationsAsync(string path, int generation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var targets = _entries.Select(item => new GitTarget(item.FullPath, item.IsDirectory)).ToArray();
+            var result = await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var snapshot = GitStatusService.TryReadFolder(path, cancellationToken);
+                var decorations = new Dictionary<string, GitDecoration>(StringComparer.OrdinalIgnoreCase);
+                foreach (var target in targets)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    decorations[target.FullPath] = GitStatusService.GetDecoration(snapshot, target.FullPath, target.IsDirectory, cancellationToken);
+                }
+                return new GitDecorationRefresh(snapshot, decorations);
+            }, cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested || generation != _navigationGeneration || !string.Equals(path, _currentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (generation != _navigationGeneration || !string.Equals(path, _currentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                foreach (var entry in _entries)
+                {
+                    if (result.Decorations.TryGetValue(entry.FullPath, out var decoration))
+                    {
+                        entry.GitGlyph = decoration.Glyph;
+                        entry.GitTooltip = decoration.Tooltip;
+                    }
+                }
+
+                ApplySort(false);
+                var gitSuffix = result.Snapshot.IsRepository ? $" | Git: {Path.GetFileName(result.Snapshot.RepositoryRoot)}" : string.Empty;
+                SetStatus($"{_entries.Count(item => item.IsDirectory)} folder(s), {_entries.Count(item => !item.IsDirectory)} file(s){gitSuffix}");
+                RuntimeLog.Info($"[{Identity.Alias}] Git decorations applied asynchronously. Path='{path}'; Generation={generation}; GitRepository={result.Snapshot.IsRepository}; GitRoot='{result.Snapshot.RepositoryRoot}'");
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            RuntimeLog.Debug($"[{Identity.Alias}] Git decoration scan canceled. Path='{path}'; Generation={generation}");
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn($"[{Identity.Alias}] Background Git decoration failed for '{path}': {ex.Message}");
+            if (generation == _navigationGeneration)
+            {
+                await Dispatcher.InvokeAsync(() => SetStatus($"{_entries.Count(item => item.IsDirectory)} folder(s), {_entries.Count(item => !item.IsDirectory)} file(s) | Git unavailable"));
+            }
+        }
+    }
+
+    private readonly record struct GitTarget(string FullPath, bool IsDirectory);
+    private readonly record struct GitDecorationRefresh(GitFolderSnapshot Snapshot, IReadOnlyDictionary<string, GitDecoration> Decorations);
 
     private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
     {

@@ -13,6 +13,6 @@ internal sealed class FileEntry
     public required string ModifiedText { get; init; }
     public required DateTime ModifiedTime { get; init; }
     public ImageSource? Icon { get; init; }
-    public string GitGlyph { get; init; } = string.Empty;
-    public string GitTooltip { get; init; } = string.Empty;
+    public string GitGlyph { get; set; } = string.Empty;
+    public string GitTooltip { get; set; } = string.Empty;
 }

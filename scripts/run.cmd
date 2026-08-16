@@ -5,6 +5,9 @@ set "CONFIG=%~1"
 if "%CONFIG%"=="" set "CONFIG=Debug"
 
 pushd "%~dp0.." >nul
+set "VERSION=unknown"
+for /f "tokens=2 delims=<>" %%V in ('findstr /c:"<WorkspaceVersionLabel>" "Directory.Build.props"') do set "VERSION=%%V"
+
 if not exist "logs\runtime" mkdir "logs\runtime"
 
 for /f %%I in ('powershell.exe -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss_fff"') do set "STAMP=%%I"
@@ -13,7 +16,7 @@ set "LOG=logs\runtime\launch_%STAMP%.log"
 
 > "%LOG%" echo ============================================================
 >>"%LOG%" echo AI Engineering Workspace launcher
->>"%LOG%" echo Version       : v0.0.6rc08
+>>"%LOG%" echo Version       : %VERSION%
 >>"%LOG%" echo Start         : %DATE% %TIME%
 >>"%LOG%" echo Configuration : %CONFIG%
 >>"%LOG%" echo Project       : src\AIEngineeringWorkspace.App\AIEngineeringWorkspace.App.csproj

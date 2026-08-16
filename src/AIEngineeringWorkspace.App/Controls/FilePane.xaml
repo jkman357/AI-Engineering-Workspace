@@ -116,7 +116,19 @@
                                     <StackPanel Orientation="Horizontal">
                                         <Grid Width="18" Height="18" Margin="0,0,4,0">
                                             <Image Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{Binding Icon}" SnapsToDevicePixels="True" />
-                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" MinWidth="12" Height="12" Padding="1,0" Background="#FFFFFF" BorderBrush="#666666" BorderThickness="1" CornerRadius="2" ToolTip="{Binding GitTooltip}"><TextBlock FontSize="9" FontWeight="Bold" LineHeight="9" TextAlignment="Center" Text="{Binding GitGlyph}" Foreground="#111111" /></Border>
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" MinWidth="12" Height="12" Padding="1,0" Background="#FFFFFF" BorderBrush="#666666" BorderThickness="1" CornerRadius="2" ToolTip="{Binding GitTooltip}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding GitGlyph}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="9" FontWeight="Bold" LineHeight="9" TextAlignment="Center" Text="{Binding GitGlyph}" Foreground="#111111" />
+                                            </Border>
                                         </Grid>
                                         <TextBlock VerticalAlignment="Center" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
