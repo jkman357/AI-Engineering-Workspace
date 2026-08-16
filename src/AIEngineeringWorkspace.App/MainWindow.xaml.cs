@@ -42,7 +42,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Native Top-Level Firefox Pseudo-Dock";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Zero-Mutation Firefox Baseline";
         SourceInitialized += (_, _) => InstallInputMessageDiagnostics();
         _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _healthTimer.Tick += (_, _) => { foreach (var tile in _browserPanes.ToArray()) tile.CheckHealth(); };

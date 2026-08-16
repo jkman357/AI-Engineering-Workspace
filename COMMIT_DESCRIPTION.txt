@@ -1,23 +1,20 @@
-refactor: prototype native top-level Firefox pseudo-docking in v0.0.6rc19
+test: isolate Firefox owner/style mutations with a zero-mutation baseline in v0.0.6rc20
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* use rc18 real-machine evidence that English/number input can work with native pass-through while Zhuyin/Chinese IME composition still fails under cross-process SetParent embedding
-* stop extending the reparented Firefox focus/IME workaround chain and change the Browser hosting boundary instead
-* replace Firefox SetParent embedding with a native top-level pseudo-dock model in which BrowserDockHost is only a WPF-owned geometry anchor
-* explicitly keep Firefox out of WS_CHILD mode and preserve it as a native top-level HWND while removing visible caption/frame chrome during pseudo-docking
-* assign the Workspace top-level HWND only as the Firefox window owner through GWL_HWNDPARENT, not as its parent, and restore the original owner on detach
-* mirror each Browser pane to screen coordinates using the anchor GetWindowRect plus SetWindowPos with SWP_NOACTIVATE and no input-queue manipulation
-* synchronize pseudo-docked Firefox geometry after pane/layout resize, Workspace viewport resize, scrolling, MainWindow movement, Window activation, and restore transitions
-* hide pseudo-docked Firefox windows when their pane or the Workspace is hidden/minimized and resynchronize them when visible again
-* remove AttachThreadInput and root SetFocus from the rc19 Firefox architecture entirely
-* change the Focus toolbar action, TabIntoCore, and Workspace-driven navigation recovery to native top-level activation through SetForegroundWindow
-* infer active Browser ownership from the native foreground Firefox top-level during health diagnostics instead of intercepting child WM_PARENTNOTIFY messages
-* retain read-only HKL, GetGUIThreadInfo, input-language, and IME diagnostics while keeping input-language synchronization, ActivateKeyboardLayout, synthetic IME composition, and Firefox child-HWND focus guessing disabled
-* retain non-focusable Workspace and Browser chrome introduced in rc18
-* document rc19 as a prototype with explicit validation requirements for Free Layout clipping/scrolling, overlapping panes, multi-monitor/mixed-DPI movement, minimize/restore, Alt-Tab, and isolation from external Firefox windows
-* add regression checks for no Firefox SetParent call, top-level WS_POPUP/owner semantics, screen-rectangle synchronization, no AttachThreadInput/SetFocus, SetForegroundWindow recovery, diagnostic-only IME handling, and the staged manual gate
-* stage the real-machine PASS gate from B1 English/number + Zhuyin to B1-B4 and only then B1-B8 before treating the pseudo-dock architecture as viable
-* stamp application/build/run/test metadata as v0.0.6rc19 / 0.0.6-rc19 / FileVersion 0.0.6.19 from Directory.Build.props
+* use rc19 real-machine evidence that removing cross-process SetParent was not sufficient to restore Zhuyin/Chinese IME composition
+* keep Firefox as a native top-level HWND and turn rc20 into a strict A/B control for the two remaining rc19 native-window identity mutations
+* remove rc19 GWL_HWNDPARENT owner reassignment so the Workspace no longer becomes the Firefox top-level owner
+* remove all Firefox GWL_STYLE and GWL_EXSTYLE mutation and intentionally retain the normal Firefox title bar, border, caption, system menu, minimize/maximize controls, and native top-level style
+* keep BrowserDockHost only as a WPF-owned geometry anchor and mirror its screen rectangle to Firefox with SetWindowPos using SWP_NOACTIVATE
+* retain zero SetParent, zero AttachThreadInput, zero root SetFocus, zero HKL synchronization, zero synthetic IME composition, and zero Firefox child-HWND focus guessing
+* retain SetForegroundWindow only as the explicit Focus / TabIntoCore / keyboard-navigation recovery path, not as normal Browser input handling
+* retain pseudo-dock visibility synchronization for Workspace hide/minimize/restore and restore only the original Firefox window placement on detach because owner/style are never changed
+* expand diagnostics with OwnerMutation=False, StyleMutation=False, ExtendedStyleMutation=False, and NativeInputMode=ZeroMutationTopLevelPseudoDock
+* keep HKL, GetGUIThreadInfo, input-language, and IME diagnostics observation-only
+* add regression checks proving BrowserDockHost contains no Firefox owner reassignment, no Firefox style mutation, no SetParent, and no input-queue bridge/root-focus forcing
+* define the first real-machine gate as B1 only: type abc123, switch to Zhuyin, compose/commit 你好, then switch back to English/number without pressing Focus
+* if B1 Chinese passes, reintroduce owner and style mutations one at a time in later RCs before expanding the Browser-count gate; if it fails, treat owner/style as ruled out and investigate Firefox window/session/TSF behavior instead
+* stamp application/build/run/test metadata as v0.0.6rc20 / 0.0.6-rc20 / FileVersion 0.0.6.20 from Directory.Build.props
 * retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, 64x64 endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
 * preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc19 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc19
+* update README, CHANGELOG, rc20 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc20

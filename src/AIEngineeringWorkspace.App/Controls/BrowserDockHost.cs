@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -9,21 +8,19 @@ using AIEngineeringWorkspace.Interop;
 namespace AIEngineeringWorkspace.Controls;
 
 /// <summary>
-/// rc19 pseudo-dock host.
+/// rc20 zero-mutation pseudo-dock baseline.
 ///
-/// The HwndHost is only a native geometry anchor inside WPF. Firefox itself remains a
-/// native top-level HWND and is never reparented with SetParent. The Workspace mirrors
-/// the anchor rectangle to screen coordinates and positions the Firefox top-level window
-/// over that rectangle. This preserves Firefox/Windows ownership of keyboard, TSF and IME.
+/// The HwndHost is only a native geometry anchor inside WPF. Firefox remains an otherwise
+/// untouched native top-level HWND: no SetParent, no owner reassignment, and no style or
+/// extended-style mutation. The Workspace only mirrors the anchor rectangle with SetWindowPos
+/// and may show/hide the window with Workspace visibility. This isolates native Firefox
+/// keyboard/TSF/IME behavior from owner/style experiments.
 /// </summary>
 public sealed class BrowserDockHost : HwndHost
 {
     private IntPtr _hostHwnd;
     private IntPtr _browserHwnd;
     private IntPtr _workspaceTopLevelHwnd;
-    private IntPtr _originalOwnerHwnd;
-    private IntPtr _originalStyle;
-    private IntPtr _originalExStyle;
     private NativeMethods.WINDOWPLACEMENT _originalPlacement;
     private bool _hasOriginalPlacement;
     private int _lastLeft = int.MinValue;
@@ -68,8 +65,9 @@ public sealed class BrowserDockHost : HwndHost
 
     protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        // The anchor is not Firefox's parent in rc19, therefore normal Firefox mouse/IME
-        // messages do not traverse this WndProc. Keep diagnostics only for the WPF-owned anchor.
+        // The anchor is not Firefox's parent in rc20. Firefox owner/style are untouched, so
+        // normal Firefox mouse/IME messages do not traverse this WndProc. Diagnostics here are
+        // limited to the WPF-owned geometry anchor.
         InputLanguageDiagnostics.LogWindowMessage("BrowserPseudoDockAnchor", hwnd, msg, wParam, lParam);
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
@@ -105,33 +103,17 @@ public sealed class BrowserDockHost : HwndHost
         _lastLeft = _lastTop = int.MinValue;
         _lastWidth = _lastHeight = -1;
         _wasForeground = false;
-        _originalStyle = NativeMethods.GetWindowLongPtr(browserHwnd, NativeMethods.GWL_STYLE);
-        _originalExStyle = NativeMethods.GetWindowLongPtr(browserHwnd, NativeMethods.GWL_EXSTYLE);
-        _originalOwnerHwnd = NativeMethods.GetWindowLongPtr(browserHwnd, NativeMethods.GWL_HWNDPARENT);
         _originalPlacement = new NativeMethods.WINDOWPLACEMENT { Length = (uint)Marshal.SizeOf<NativeMethods.WINDOWPLACEMENT>() };
         _hasOriginalPlacement = NativeMethods.GetWindowPlacement(browserHwnd, ref _originalPlacement);
 
-        RuntimeLog.Info($"Pseudo-dock start. BrowserHWND=0x{browserHwnd.ToInt64():X}; AnchorHWND=0x{_hostHwnd.ToInt64():X}; Style=0x{_originalStyle.ToInt64():X}; ExStyle=0x{_originalExStyle.ToInt64():X}; PlacementSaved={_hasOriginalPlacement}");
-        NativeMethods.ShowWindow(browserHwnd, NativeMethods.SW_RESTORE);
+        RuntimeLog.Info($"Zero-mutation pseudo-dock start. BrowserHWND=0x{browserHwnd.ToInt64():X}; AnchorHWND=0x{_hostHwnd.ToInt64():X}; PlacementSaved={_hasOriginalPlacement}; SetParentUsed=False; OwnerMutation=False; StyleMutation=False; ExtendedStyleMutation=False");
 
-        // Keep Firefox a real top-level window. Remove visible top-level chrome so it looks
-        // docked, but explicitly never set WS_CHILD and never call SetParent.
-        var style = _originalStyle.ToInt64();
-        style &= ~(NativeMethods.WS_CHILD | NativeMethods.WS_CAPTION | NativeMethods.WS_THICKFRAME |
-                   NativeMethods.WS_MINIMIZEBOX | NativeMethods.WS_MAXIMIZEBOX | NativeMethods.WS_SYSMENU);
-        style |= NativeMethods.WS_POPUP | NativeMethods.WS_VISIBLE | NativeMethods.WS_CLIPCHILDREN | NativeMethods.WS_CLIPSIBLINGS;
-        NativeMethods.SetWindowLongPtr(browserHwnd, NativeMethods.GWL_STYLE, new IntPtr(style));
-        if (_workspaceTopLevelHwnd != IntPtr.Zero && NativeMethods.IsWindow(_workspaceTopLevelHwnd))
-            NativeMethods.SetWindowLongPtr(browserHwnd, NativeMethods.GWL_HWNDPARENT, _workspaceTopLevelHwnd);
-
-        if (!NativeMethods.SetWindowPos(browserHwnd, IntPtr.Zero, 0, 0, 0, 0,
-                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE |
-                NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW))
-            RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed while entering pseudo-dock mode. Win32={Marshal.GetLastWin32Error()}");
-
+        // rc20 control group: do not alter Firefox parent, owner, GWL_STYLE, or GWL_EXSTYLE.
+        // The Firefox title bar/frame intentionally remain visible. Geometry is the only dock
+        // transformation and is performed through SetWindowPos(... SWP_NOACTIVATE ...).
         ResizeDockedWindow();
-        FirefoxInputCoordinator.ObserveDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.PseudoDock");
-        RuntimeLog.Info($"Pseudo-dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; SetParentUsed=False; Firefox remains a native top-level HWND for keyboard/TSF/IME ownership.");
+        FirefoxInputCoordinator.ObserveDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.ZeroMutationPseudoDock");
+        RuntimeLog.Info($"Zero-mutation pseudo-dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; SetParentUsed=False; OwnerMutation=False; StyleMutation=False; InputMutation=False; Firefox remains an unmodified native top-level window except geometry/visibility.");
     }
 
     public void Detach()
@@ -148,13 +130,7 @@ public sealed class BrowserDockHost : HwndHost
 
         try
         {
-            RestoreWindowStyleOnly(hwnd);
-            NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_HWNDPARENT, _originalOwnerHwnd);
-            if (!NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE |
-                    NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW))
-                RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed during pseudo-dock detach. Win32={Marshal.GetLastWin32Error()}");
-
+            // Parent/owner/style were never changed in rc20; only restore the pre-dock placement.
             if (_hasOriginalPlacement)
             {
                 var placement = _originalPlacement;
@@ -181,8 +157,8 @@ public sealed class BrowserDockHost : HwndHost
     }
 
     /// <summary>
-    /// Historical API name retained for callers. In rc19 this synchronizes a native top-level
-    /// Firefox window to the screen rectangle occupied by the WPF anchor; it does not resize a child HWND.
+    /// Historical API name retained for callers. In rc20 this synchronizes an otherwise
+    /// untouched native top-level Firefox window to the WPF anchor screen rectangle.
     /// </summary>
     public void ResizeDockedWindow()
     {
@@ -217,7 +193,7 @@ public sealed class BrowserDockHost : HwndHost
         _lastTop = top;
         _lastWidth = width;
         _lastHeight = height;
-        RuntimeLog.Debug($"Pseudo-dock geometry synchronized. BrowserHWND=0x{_browserHwnd.ToInt64():X}; ScreenRect={left},{top},{width}x{height}; SetParentUsed=False");
+        RuntimeLog.Debug($"Zero-mutation pseudo-dock geometry synchronized. BrowserHWND=0x{_browserHwnd.ToInt64():X}; ScreenRect={left},{top},{width}x{height}; SetParentUsed=False; OwnerMutation=False; StyleMutation=False");
     }
 
     public void FinalizeResizeRepaint()
@@ -349,22 +325,12 @@ public sealed class BrowserDockHost : HwndHost
         if (sent != inputs.Length) RuntimeLog.Warn($"SendInput incomplete for {operation}. Requested={inputs.Length}; Sent={sent}; Win32={Marshal.GetLastWin32Error()}");
     }
 
-    private void RestoreWindowStyleOnly(IntPtr hwnd)
-    {
-        if (!NativeMethods.IsWindow(hwnd)) return;
-        NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_STYLE, _originalStyle);
-        NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, _originalExStyle);
-    }
-
     private void ClearDockState()
     {
         var previousBrowserHwnd = _browserHwnd;
         FirefoxInputCoordinator.Forget(previousBrowserHwnd);
         BrowserDockRegistry.Release(previousBrowserHwnd, this);
         _browserHwnd = IntPtr.Zero;
-        _originalOwnerHwnd = IntPtr.Zero;
-        _originalStyle = IntPtr.Zero;
-        _originalExStyle = IntPtr.Zero;
         _hasOriginalPlacement = false;
         _lastLeft = _lastTop = int.MinValue;
         _lastWidth = _lastHeight = -1;

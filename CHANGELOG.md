@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.6rc20
+
+- continue the active v0.0.6 RC line without freezing the release;
+- use rc19 real-machine evidence that removing `SetParent` alone did not restore Zhuyin/Chinese IME composition;
+- keep Firefox as a native top-level window and remove rc19 owner reassignment through `GWL_HWNDPARENT`;
+- remove rc19 `GWL_STYLE` / `GWL_EXSTYLE` mutation and intentionally retain the native Firefox title bar/frame as an A/B control;
+- restrict pseudo-dock transformation to screen-rectangle synchronization through `SetWindowPos(... SWP_NOACTIVATE ...)` plus visibility show/hide;
+- retain no `SetParent`, no `AttachThreadInput`, no root `SetFocus`, no HKL synchronization, no synthetic IME composition, and no Firefox child-HWND focus guessing;
+- retain explicit `SetForegroundWindow` only for the Focus/recovery action;
+- add diagnostics proving `OwnerMutation=False` and `StyleMutation=False`;
+- document a B1-only English/number then Zhuyin `你好` control gate before any B2-B8 expansion;
+- stamp metadata as `v0.0.6rc20` / `0.0.6-rc20` / FileVersion `0.0.6.20`.
+
 ## v0.0.6rc19
 
 - replace `SetParent` Firefox embedding with a native top-level pseudo-dock prototype after rc18 real-machine testing showed English/number input PASS but Zhuyin/IME composition FAIL;

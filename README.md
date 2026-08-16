@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc19**
+Current version: **v0.0.6rc20**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -21,7 +21,7 @@ Runtime diagnostics are local engineering logs and may contain paths, URLs, HWND
 ```text
 Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
-│  ├─ native top-level Firefox pseudo-docking (no SetParent)
+│  ├─ zero-mutation native top-level Firefox baseline (geometry only)
 │  ├─ screen-rectangle synchronization to the WPF Browser pane
 │  ├─ Firefox-native keyboard / TSF / IME ownership
 │  ├─ Workspace maximize / restore
@@ -42,6 +42,23 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc20 — Zero-Mutation Firefox Baseline
+
+Real-machine rc19 testing showed that removing `SetParent` was **not sufficient** to restore Zhuyin/Chinese composition: English/number input worked, but Zhuyin still failed. rc20 therefore removes the two remaining native-window identity mutations from the pseudo-dock experiment.
+
+In rc20 Firefox stays visually and structurally native:
+
+- no `SetParent`;
+- no `GWL_HWNDPARENT` owner reassignment;
+- no `GWL_STYLE` or `GWL_EXSTYLE` mutation;
+- no `AttachThreadInput`, root `SetFocus`, HKL synchronization, or synthetic IME composition;
+- the Firefox title bar and frame intentionally remain visible;
+- the Workspace only mirrors the Browser pane's screen rectangle with `SetWindowPos(... SWP_NOACTIVATE ...)` and may hide/show the window with Workspace visibility.
+
+This is an A/B control RC, not a UX target. The first gate is B1 only: `abc123` must work, then Zhuyin must compose/commit `你好`. If Chinese passes, rc21 can add owner and style mutations back **one at a time** to identify the offending mutation. If Chinese still fails, owner/style are ruled out and the investigation moves to Firefox window creation/session/TSF behavior rather than WPF focus APIs.
+
+See `docs/releases/v0.0.6rc20.md`.
 
 ## v0.0.6rc19 — Native Top-Level Firefox Pseudo-Dock
 
@@ -137,7 +154,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc19.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc20.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

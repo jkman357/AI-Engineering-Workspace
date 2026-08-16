@@ -5,13 +5,13 @@ using AIEngineeringWorkspace.Interop;
 namespace AIEngineeringWorkspace.Browser;
 
 /// <summary>
-/// Central observer/activation helper for rc19 native top-level Firefox pseudo-docking.
+/// Central observer/activation helper for rc20 zero-mutation Firefox pseudo-docking.
 ///
 /// Firefox is not reparented and normal input is never proxied. The Workspace only tracks
 /// which native top-level Firefox root is active, records HKL/GUI-thread diagnostics, and
 /// offers an explicit recovery action that activates the top-level window through the
 /// normal Win32 foreground-window path. AttachThreadInput and SetFocus are intentionally
-/// not used in rc19.
+/// not used in rc20. Firefox owner/style are also intentionally left untouched.
 /// </summary>
 internal static class FirefoxInputCoordinator
 {
@@ -40,7 +40,7 @@ internal static class FirefoxInputCoordinator
         RuntimeLog.Info(
             $"Firefox pseudo-dock registered. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; " +
             $"BrowserThread={browserThreadId}; PID={browserPid}; SetParentUsed=False; PersistentBridge=False; AutomaticRootFocus=False; " +
-            $"InputLanguageSync=False; NativeTopLevel=True; Reason='{reason}'");
+            $"InputLanguageSync=False; NativeTopLevel=True; OwnerMutation=False; StyleMutation=False; Reason='{reason}'");
     }
 
     internal static void MarkActiveRoot(IntPtr browserHwnd, string reason)
@@ -51,7 +51,7 @@ internal static class FirefoxInputCoordinator
             var changed = _activeBrowserHwnd != browserHwnd;
             _activeBrowserHwnd = browserHwnd;
             if (changed)
-                RuntimeLog.Info($"Active native Firefox top-level observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; NativeInputMode=TopLevelPseudoDock; Reason='{reason}'");
+                RuntimeLog.Info($"Active native Firefox top-level observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; NativeInputMode=ZeroMutationTopLevelPseudoDock; Reason='{reason}'");
         }
     }
 
@@ -104,7 +104,7 @@ internal static class FirefoxInputCoordinator
             LastSnapshots[browserHwnd] = after;
             RuntimeLog.Info(
                 $"Explicit native Firefox top-level activation completed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; " +
-                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; SetParentUsed=False; AttachThreadInputUsed=False; SetFocusUsed=False; " +
+                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; SetParentUsed=False; OwnerMutation=False; StyleMutation=False; AttachThreadInputUsed=False; SetFocusUsed=False; " +
                 $"SetForegroundWindowResult={foregroundRequested}; ForegroundWin32={foregroundError}; ForegroundBefore=0x{before.Foreground.ToInt64():X}; ForegroundAfter=0x{after.Foreground.ToInt64():X}; " +
                 $"GuiActiveAfter=0x{after.GuiActive.ToInt64():X}; GuiFocusAfter=0x{after.GuiFocus.ToInt64():X}; WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(after.WorkspaceHkl)}; " +
                 $"BrowserHKL={InputLanguageDiagnostics.FormatHkl(after.BrowserHkl)}; InputLanguageMismatch={after.WorkspaceHkl != after.BrowserHkl}; InputLanguageSyncPosted=False; Reason='{reason}'");
@@ -131,7 +131,7 @@ internal static class FirefoxInputCoordinator
             RuntimeLog.Info(
                 $"Firefox input-language state observed without synchronization. BrowserHWND=0x{active.ToInt64():X}; BrowserThread={browserThreadId}; PID={browserPid}; " +
                 $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(workspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(browserHkl)}; " +
-                $"InputLanguageMismatch={workspaceHkl != browserHkl}; InputLanguageSyncPosted=False; NativeInputMode=TopLevelPseudoDock; Reason='{reason}'");
+                $"InputLanguageMismatch={workspaceHkl != browserHkl}; InputLanguageSyncPosted=False; NativeInputMode=ZeroMutationTopLevelPseudoDock; Reason='{reason}'");
         }
     }
 
@@ -152,7 +152,7 @@ internal static class FirefoxInputCoordinator
             LastSnapshots[browserHwnd] = snapshot;
             RuntimeLog.Info(
                 $"Firefox pseudo-dock input-state transition observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; PID={browserPid}; " +
-                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; SetParentUsed=False; PersistentInputBridgeAttached=False; NativeInputMode=TopLevelPseudoDock; " +
+                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; SetParentUsed=False; OwnerMutation=False; StyleMutation=False; PersistentInputBridgeAttached=False; NativeInputMode=ZeroMutationTopLevelPseudoDock; " +
                 $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(snapshot.WorkspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(snapshot.BrowserHkl)}; " +
                 $"InputLanguageMismatch={snapshot.WorkspaceHkl != snapshot.BrowserHkl}; Foreground=0x{snapshot.Foreground.ToInt64():X}; GuiInfoOk={snapshot.GuiInfoOk}; " +
                 $"GuiActive=0x{snapshot.GuiActive.ToInt64():X}; GuiFocus=0x{snapshot.GuiFocus.ToInt64():X}; GuiCaret=0x{snapshot.GuiCaret.ToInt64():X}; Reason='{reason}'");
