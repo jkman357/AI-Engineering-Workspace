@@ -59,20 +59,20 @@ public sealed class BrowserDockHost : HwndHost
             var reason = $"BrowserDockHost.WM_PARENTNOTIFY.MouseDown(0x{LowWord(wParam):X4})";
             try
             {
-                RuntimeLog.Debug($"Native Firefox activation observed. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'");
+                RuntimeLog.Debug($"Native Firefox activation observed in pass-through mode. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'");
+                FirefoxInputCoordinator.MarkActiveRoot(_browserHwnd, reason);
                 NativeBrowserActivated?.Invoke(this, EventArgs.Empty);
-                FocusBrowser(reason);
             }
             catch (Exception ex)
             {
-                RuntimeLog.Error($"Native Firefox activation recovery failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'", ex);
+                RuntimeLog.Error($"Native Firefox activation observation failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'", ex);
             }
         }
         else if (IsDocked && (uint)msg == NativeMethods.WM_MOUSEACTIVATE)
         {
-            // WM_PARENTNOTIFY mouse-down is the single focus-ownership path in rc17.
-            // Keep WM_MOUSEACTIVATE visible for diagnostics without performing a second handoff.
-            RuntimeLog.Debug($"Native Firefox WM_MOUSEACTIVATE observed; duplicate focus handoff suppressed. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}");
+            // rc18 observes activation only. Firefox receives the original mouse activation path
+            // without Workspace SetFocus/AttachThreadInput interference.
+            RuntimeLog.Debug($"Native Firefox WM_MOUSEACTIVATE observed in pass-through mode. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}");
         }
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
@@ -144,9 +144,8 @@ public sealed class BrowserDockHost : HwndHost
             RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed after dock. Win32={Marshal.GetLastWin32Error()}");
 
         ResizeDockedWindow();
-        FirefoxInputCoordinator.RegisterDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.Dock");
-        FocusBrowser();
-        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; persistent input bridge ownership is managed centrally per Firefox thread.");
+        FirefoxInputCoordinator.ObserveDock(browserHwnd, _workspaceInputThreadId, "BrowserDockHost.Dock");
+        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; native Firefox input is pass-through; no automatic root focus handoff or persistent input bridge was created.");
     }
 
     public void Detach()

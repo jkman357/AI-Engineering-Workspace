@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.0.6rc18
+
+- reverse rc17 persistent input-queue bridging after real-machine testing showed correct B7 root-HWND focus while typed text could still route to B8;
+- make normal docked Firefox interaction native pass-through: Browser mouse activation is observed for pane ownership/z-order but does not call `SetFocus` or `AttachThreadInput`;
+- remove central persistent `AttachThreadInput` bridge state, reference counts, and automatic root-focus handoff from normal Browser clicks and dock lifecycle;
+- retain a temporary attach / root `SetFocus` / immediate detach transaction only for explicit recovery paths such as `⌖ Focus`, `TabIntoCore`, and Workspace-driven keyboard navigation;
+- make top Workspace toolbar buttons and Browser pane chrome buttons non-focusable / non-tab-stop so Show IDs, Auto Fit, add, maximize, detach, and related mouse commands do not intentionally take keyboard focus from Firefox;
+- replace maximize/restore focus recovery with deferred native repaint only;
+- change HKL mismatch handling back to diagnostic-only observation and stop posting `WM_INPUTLANGCHANGEREQUEST` into Firefox;
+- continue to avoid Firefox compositor/content child-HWND enumeration, synthetic IME composition, and `ActivateKeyboardLayout`;
+- add regression checks and a real-machine B1-B8 gate for English/number + Zhuyin routing, Show IDs, add/close/reopen, and B7→B8 isolation with no Focus-button dependency;
+- stamp application/build/run/test metadata as `v0.0.6rc18` / `0.0.6-rc18` / FileVersion `0.0.6.18`;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc17
 
 - replace rc16 one-shot attach/focus/detach transactions with one central persistent `AttachThreadInput` bridge per unique Workspace-thread / Firefox-thread pair;

@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc17**
+Current version: **v0.0.6rc18**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -23,7 +23,7 @@ Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
 │  ├─ real Firefox HWND docking
 │  ├─ Firefox-native address bar / web-content focus
-│  ├─ shared Firefox-thread input bridge + root-HWND focus handoff
+│  ├─ Firefox-native input pass-through + explicit recovery only
 │  ├─ Workspace maximize / restore
 │  ├─ Launch + Dock / Dock Existing / Focus / Detach
 │  └─ per-window lifecycle ownership
@@ -43,19 +43,21 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
-## v0.0.6rc17 — Shared Firefox Thread Input Bridge
+## v0.0.6rc18 — Firefox Native Input Pass-Through
 
-rc16 proved that native pane detection was working: clicks on B1/B2/B3/B4 were observed and `ActiveBrowserHWND` changed to the clicked Firefox root. The remaining failure was input routing after each temporary bridge was detached. All docked Firefox roots in the reproduced run shared one Firefox GUI/input thread, so rc17 moves bridge lifetime from the pane level to the unique `(Workspace UI thread, Firefox input thread)` pair.
+Real-machine rc17 testing showed that the Workspace could correctly identify B7 and report B7 as the active/root-focused Firefox HWND while typed data still appeared in B8. That is strong evidence that Win32 root focus is not a reliable substitute for Firefox's own internal text/IME focus routing when several reparented Firefox windows share one Firefox GUI/input thread.
 
-- the first dock on a Firefox input thread creates one persistent `AttachThreadInput` bridge;
-- additional Browser panes on the same Firefox thread increment a central reference count instead of attaching again;
-- switching Browser panes uses only `SetFocus` on the clicked Firefox root while the thread bridge remains connected;
-- closing a Browser decrements the bridge reference count, and the bridge is detached only after the last dock on that Firefox thread is removed;
-- `BrowserDockHost` still owns no persistent bridge state, so one pane cannot tear down a bridge still used by another pane;
-- `WM_PARENTNOTIFY` mouse-down is the single native Browser activation/focus path; `WM_MOUSEACTIVATE` remains diagnostic-only to avoid doing two focus handoffs for one click;
-- active-root HKL synchronization remains request-based (`WM_INPUTLANGCHANGEREQUEST`) and the application still does not synthesize IME composition or guess Firefox child HWNDs.
+rc18 therefore reduces Workspace interference instead of adding more focus control:
 
-The rc17 acceptance gate starts with repeated B3 → B1 → B2 → B4 → B3 switching and verifies that text remains in the clicked Browser instead of continuing to route to the previously active pane. It then repeats the existing Show IDs, layout, close/reopen, English/number, and Zhuyin checks.
+- normal Firefox mouse clicks are pass-through; `WM_PARENTNOTIFY` records the active B# pane and z-order only, without `SetFocus`;
+- the rc17 persistent `AttachThreadInput` bridge/reference-count model is removed;
+- docking does not automatically force Firefox root focus after `SetParent`;
+- `⌖ Focus`, `TabIntoCore`, and Workspace-driven keyboard navigation keep a temporary attach / root `SetFocus` / immediate detach recovery transaction;
+- Workspace toolbar and Browser chrome buttons are non-focusable/non-tab-stop so Show IDs, Auto Fit, add, maximize/restore, Focus, and Detach mouse commands do not intentionally take keyboard focus from Firefox;
+- maximize/restore keeps deferred refit/repaint only and no longer performs automatic root-focus recovery;
+- HKL mismatch handling is diagnostic-only: rc18 does not post `WM_INPUTLANGCHANGEREQUEST`, call `ActivateKeyboardLayout`, synthesize IME composition, or guess Firefox compositor/content child HWNDs.
+
+The rc18 acceptance gate is B1-B8 direct-click routing with distinct English/number and Zhuyin input, including the previously failing B7 → B8 isolation case plus Show IDs, layout, close/reopen, and maximize/restore transitions without using `⌖ Focus`.
 
 ## v0.0.6rc15 — Browser Maximize / Restore Focus Recovery
 
@@ -103,7 +105,7 @@ finally: DetachThreadInput
 Firefox owns address-bar / page / ChatGPT prompt focus
 ```
 
-There is no persistent per-pane input bridge state. rc17 keeps one reference-counted bridge per unique Workspace/Firefox input-thread pair while one or more docked Firefox roots use that pair. Normal Browser input does not enumerate, rank, or force focus into guessed Firefox compositor/content child HWNDs. `TabIntoCore` and the `Focus` toolbar action remain root-HWND recovery paths only.
+There is no persistent per-pane input bridge state. In rc18 there is also no persistent per-thread bridge: normal Browser interaction is native pass-through. `TabIntoCore` and the `Focus` toolbar action remain explicit temporary root-HWND recovery paths only, and normal Browser input does not enumerate, rank, or force focus into guessed Firefox compositor/content child HWNDs.
 
 The rc12 New Workspace behavior is retained: a clean Workspace gets an explicit Create New / Cancel confirmation; a dirty Workspace retains Save / Discard / Cancel semantics before reset. The default reset remains F1/F2 + B1-B4, Auto Fit, Google Browser startup, reset feedback, and no Browser session persistence.
 
@@ -129,7 +131,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc17.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc18.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

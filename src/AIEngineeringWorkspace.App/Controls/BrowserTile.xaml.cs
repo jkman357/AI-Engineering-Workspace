@@ -78,14 +78,6 @@ public partial class BrowserTile : UserControl
     internal void FinalizeBrowserRepaint() => BrowserHost.FinalizeResizeRepaint();
     internal void MarkBrowserActive(string reason) => BrowserHost.MarkActive(reason);
 
-    internal void RecoverBrowserFocusAfterLayout(string reason)
-    {
-        if (!BrowserHost.IsDocked) return;
-        Keyboard.ClearFocus();
-        BrowserHost.FocusBrowser(reason);
-        RuntimeLog.Info($"[{Identity.Alias}] Deferred Firefox focus recovery completed after Workspace layout transition. Reason='{reason}'; BrowserHWND=0x{BrowserHost.BrowserHwnd.ToInt64():X}");
-    }
-
     internal void SetMaximizedState(bool maximized)
     {
         MaximizePaneButton.Content = maximized ? "❐" : "□";

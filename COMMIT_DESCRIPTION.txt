@@ -1,24 +1,24 @@
-fix: share one reference-counted Firefox input bridge per input thread in v0.0.6rc17
+fix: return normal Firefox interaction to native input pass-through in v0.0.6rc18
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* use rc16 runtime evidence to separate native Browser click detection from the remaining keyboard-routing failure
-* replace one-shot AttachThreadInput attach/focus/detach transactions with one persistent bridge per unique Workspace UI thread / Firefox input-thread pair
-* register every dock centrally after SetParent and before the initial Firefox root focus handoff
-* reference-count all docked Firefox root HWNDs that share the same Firefox input thread instead of assigning bridge ownership to individual Browser panes
-* attach the WPF and Firefox input queues only when the first dock on a thread pair is registered
-* keep the shared input bridge connected while any Browser dock on that Firefox thread remains
-* switch B1/B2/B3/B4 keyboard ownership by SetFocus on the clicked Firefox root without tearing down the shared thread bridge after each click
-* decrement the thread-bridge reference count when a Browser is detached, lost, or destroyed and detach AttachThreadInput only after the final registered dock on that thread pair is removed
-* keep all persistent bridge state in FirefoxInputCoordinator so BrowserDockHost instances cannot independently detach shared thread ownership
-* retain central ActiveBrowserHWND tracking and active-only WPF layout / Show IDs / maximize-restore focus recovery
-* make WM_PARENTNOTIFY mouse-down the single native Browser activation/focus path and keep WM_MOUSEACTIVATE diagnostic-only to suppress duplicate focus handoffs for one click
-* retain request-based active-root WM_INPUTLANGCHANGEREQUEST synchronization when Workspace and Firefox HKLs differ
+* use rc17 real-machine evidence that B7 could be the observed active/root-focused Firefox HWND while typed data still routed to B8
+* treat Win32 Firefox root-HWND focus as insufficient to represent Firefox internal text-edit and IME focus across multiple reparented Firefox windows sharing one GUI/input thread
+* remove the rc17 persistent reference-counted AttachThreadInput bridge and all normal dock-lifetime thread-bridge ownership
+* make ordinary Browser mouse activation pass-through: observe WM_PARENTNOTIFY to record the active B# pane and promote WPF z-order, but do not call SetFocus or AttachThreadInput
+* keep WM_MOUSEACTIVATE diagnostic-only and leave the original Firefox mouse activation/focus path untouched
+* stop automatically forcing Firefox root focus immediately after SetParent during dock
+* retain FirefoxInputCoordinator only as active-root observer, input-state diagnostic source, and explicit recovery authority
+* keep temporary AttachThreadInput + root SetFocus + immediate detach in finally only for explicit recovery paths such as the Focus toolbar action, TabIntoCore, and Workspace-driven keyboard navigation
+* remove automatic active-Browser focus recovery from Show IDs, Auto Fit/Free Layout, Add Browser, viewport resize, and maximize/restore transitions
+* keep deferred Firefox refit/final repaint after maximize/restore without changing keyboard focus
+* make top Workspace toolbar buttons non-focusable and non-tab-stop so mouse commands do not intentionally steal keyboard focus from Firefox
+* make Browser pane chrome buttons and the move thumb non-focusable/non-tab-stop while retaining the Focus button as an explicit mouse-invoked recovery action
+* change Workspace/Firefox HKL mismatch handling back to diagnostic-only observation and stop posting WM_INPUTLANGCHANGEREQUEST into Firefox
 * continue to avoid ActivateKeyboardLayout, synthetic WM_IME_COMPOSITION, and Firefox compositor/content child-HWND enumeration or focus guessing
-* expand runtime diagnostics with persistent bridge attached state, reference count, registered-dock count, active Browser HWND, current focus, GUI focus, and bridge acquire/release events
-* add regression checks for central per-thread bridge ownership, reference-counted last-dock detach, absence of per-pane bridge state, and WM_MOUSEACTIVATE handoff deduplication
-* add a real-machine routing gate: B3=333, B1=111, B2=222, B4=444, then B3=ccc, B1=aaa, B2=bbb, with every value remaining in the clicked Browser and no Focus-button use
-* retain the broader B1-B8 English/number + Zhuyin, Show IDs, layout, close/reopen, File-pane isolation, and maximize/restore regression gates
-* stamp application/build/run/test metadata as v0.0.6rc17 / 0.0.6-rc17 / FileVersion 0.0.6.17 from Directory.Build.props
+* retain rc14 HKL, GetGUIThreadInfo, input-language, and IME message diagnostics so pass-through behavior can be correlated with native foreground/active/focus evidence
+* add regression checks for zero persistent input bridges, no SetFocus on normal native Browser activation, temporary recovery-only AttachThreadInput pairing, non-focusable WPF chrome, diagnostic-only HKL handling, and no automatic layout focus recovery
+* document a real-machine B1-B8 PASS gate for English/number + Zhuyin, B7-to-B8 routing isolation, Show IDs, layout transitions, maximize/restore, and close/reopen without pressing Focus
+* stamp application/build/run/test metadata as v0.0.6rc18 / 0.0.6-rc18 / FileVersion 0.0.6.18 from Directory.Build.props
 * retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, 64x64 endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
 * preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc17 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc17
+* update README, CHANGELOG, rc18 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc18

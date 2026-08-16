@@ -7,20 +7,19 @@ Run("AutoFit_12Panes_NoOverlap", TestAutoFit12PanesNoOverlap);
 Run("AutoFit_SinglePane_FillsViewport", TestSinglePaneFill);
 Run("GitPorcelain_Rename_UsesDestinationPath", TestRenameUsesDestination);
 Run("GitBadge_Xaml_CollapsesEmptyGlyph", TestGitBadgeCollapsed);
-Run("Version_SingleSource_IsRc17", TestVersionSource);
+Run("Version_SingleSource_IsRc18", TestVersionSource);
 Run("WorkspaceProject_RoundTrip_PreservesLayoutAndFilePath", TestWorkspaceProjectRoundTrip);
 Run("EndpointBadge_ShowIds_Uses64x64Header", TestEndpointBadgeSize);
 Run("Version_DisplaySuppressesSourceRevision", TestVersionDisplaySuppressesSourceRevision);
 Run("NewWorkspace_RepeatedResetHasVisibleFeedback", TestNewWorkspaceFeedback);
-Run("BrowserInput_UsesPersistentThreadBridge", TestBrowserInputHandoff);
-Run("BrowserInput_NoChildHwndFocusGuessing", TestNoChildHwndFocusGuessing);
-Run("BrowserInput_MultiPaneManualPassGate_Documented", TestMultiPanePassGateDocumented);
-Run("BrowserInput_IMEInstrumentationAndActiveSync", TestImeInstrumentation);
-Run("BrowserMaximizeRestore_UsesDeferredRootFocusRecovery", TestBrowserMaximizeRestoreFocusRecovery);
-Run("BrowserInput_NativeActivationOwnership", TestNativeBrowserActivationOwnership);
-Run("BrowserInput_ActiveLayoutRecovery", TestActiveBrowserLayoutRecovery);
-Run("BrowserInput_ActiveInputLanguageSync", TestActiveBrowserInputLanguageSync);
 Run("NewWorkspace_AlwaysConfirmsBeforeReset", TestNewWorkspaceConfirmation);
+Run("BrowserInput_NormalPath_IsNativePassThrough", TestNativePassThrough);
+Run("BrowserInput_ExplicitRecovery_IsTemporaryOnly", TestExplicitRecoveryOnly);
+Run("BrowserInput_NoChildHwndFocusGuessing", TestNoChildHwndFocusGuessing);
+Run("BrowserInput_WpfChrome_IsNonFocusable", TestNonFocusableChrome);
+Run("BrowserInput_LayoutTransitions_DoNotForceFocus", TestLayoutDoesNotForceFocus);
+Run("BrowserInput_IMEInstrumentation_IsDiagnosticOnly", TestImeDiagnosticOnly);
+Run("BrowserInput_Rc18ManualPassGate_Documented", TestManualPassGateDocumented);
 
 if (failures.Count == 0)
 {
@@ -48,13 +47,13 @@ void TestAutoFit12PanesNoOverlap()
 void TestSinglePaneFill(){var plan=AutoFitLayoutPlanner.Plan(1280,720,new[]{new AutoFitPaneSpec(360,260)},8,4);var cell=plan.Cells.Single();Assert(Math.Abs(cell.X)<.001&&Math.Abs(cell.Y)<.001,"single pane must start at origin");Assert(cell.Width>=1280&&cell.Height>=720,"single pane must fill viewport");}
 void TestRenameUsesDestination(){var root=Path.GetFullPath(Path.Combine(Path.GetTempPath(),"aiew-tests-repo"));var parsed=GitPorcelainParser.Parse(root,"R  new.txt\0old.txt\0");var newPath=Path.GetFullPath(Path.Combine(root,"new.txt")).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);var oldPath=Path.GetFullPath(Path.Combine(root,"old.txt")).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);Assert(parsed.ContainsKey(newPath),"rename destination/current path missing");Assert(!parsed.ContainsKey(oldPath),"rename source/old path must not receive visible status");}
 void TestGitBadgeCollapsed(){var root=FindRepositoryRoot();var xaml=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","FilePane.xaml"));Assert(xaml.Contains("DataTrigger Binding=\"{Binding GitGlyph}\" Value=\"\"",StringComparison.Ordinal),"empty GitGlyph collapse trigger missing");Assert(xaml.Contains("<Setter Property=\"Visibility\" Value=\"Collapsed\"",StringComparison.Ordinal),"collapsed visibility setter missing");}
-void TestVersionSource(){var doc=XDocument.Load(Path.Combine(FindRepositoryRoot(),"Directory.Build.props"));var values=doc.Descendants().ToDictionary(x=>x.Name.LocalName,x=>x.Value,StringComparer.OrdinalIgnoreCase);Assert(values["WorkspaceVersionLabel"]=="v0.0.6rc17","WorkspaceVersionLabel drift");Assert(values["Version"]=="0.0.6-rc17","package Version drift");Assert(values["FileVersion"]=="0.0.6.17","FileVersion drift");}
+void TestVersionSource(){var doc=XDocument.Load(Path.Combine(FindRepositoryRoot(),"Directory.Build.props"));var values=doc.Descendants().ToDictionary(x=>x.Name.LocalName,x=>x.Value,StringComparer.OrdinalIgnoreCase);Assert(values["WorkspaceVersionLabel"]=="v0.0.6rc18","WorkspaceVersionLabel drift");Assert(values["Version"]=="0.0.6-rc18","package Version drift");Assert(values["FileVersion"]=="0.0.6.18","FileVersion drift");}
 void TestWorkspaceProjectRoundTrip()
 {
     var path=Path.Combine(Path.GetTempPath(),$"aiew-{Guid.NewGuid():N}.aew");
     try
     {
-        var paneId=Guid.NewGuid();var project=new WorkspaceProjectDocument{ApplicationVersion="v0.0.6rc17",LayoutMode=WorkspaceLayoutMode.FreeLayout,ShowEndpointIds=true,Panes=new List<WorkspacePaneState>{new(){Kind=PaneKind.File,PaneId=paneId,DisplayIndex=2,X=123,Y=45,Width=456,Height=321,FilePath=@"C:\Example"},new(){Kind=PaneKind.Browser,PaneId=Guid.NewGuid(),DisplayIndex=1,X=600,Y=45,Width=720,Height=540}}};
+        var paneId=Guid.NewGuid();var project=new WorkspaceProjectDocument{ApplicationVersion="v0.0.6rc18",LayoutMode=WorkspaceLayoutMode.FreeLayout,ShowEndpointIds=true,Panes=new List<WorkspacePaneState>{new(){Kind=PaneKind.File,PaneId=paneId,DisplayIndex=2,X=123,Y=45,Width=456,Height=321,FilePath=@"C:\Example"},new(){Kind=PaneKind.Browser,PaneId=Guid.NewGuid(),DisplayIndex=1,X=600,Y=45,Width=720,Height=540}}};
         WorkspaceProjectService.Save(path,project);var loaded=WorkspaceProjectService.Load(path);Assert(loaded.LayoutMode==WorkspaceLayoutMode.FreeLayout,"layout mode not preserved");Assert(loaded.ShowEndpointIds,"Show IDs state not preserved");var file=loaded.Panes.Single(p=>p.Kind==PaneKind.File);Assert(file.PaneId==paneId&&file.DisplayIndex==2,"File endpoint identity not preserved");Assert(file.X==123&&file.Y==45&&file.Width==456&&file.Height==321,"pane geometry not preserved");Assert(file.FilePath==@"C:\Example","File path not preserved");Assert(typeof(WorkspacePaneState).GetProperty("BrowserUrl") is null,"Browser URL must not be persisted by Workspace project schema");
     }
     finally{if(File.Exists(path))File.Delete(path);if(File.Exists(path+".tmp"))File.Delete(path+".tmp");}
@@ -62,99 +61,79 @@ void TestWorkspaceProjectRoundTrip()
 void TestEndpointBadgeSize(){var root=FindRepositoryRoot();foreach(var file in new[]{"BrowserTile.xaml","FilePane.xaml"}){var xaml=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls",file));Assert(xaml.Contains("x:Name=\"EndpointLargeBadgeBorder\"",StringComparison.Ordinal),$"{file} large endpoint header badge missing");Assert(xaml.Contains("Width=\"64\"",StringComparison.Ordinal)&&xaml.Contains("Height=\"64\"",StringComparison.Ordinal),$"{file} endpoint badge is not 64x64");Assert(xaml.Contains("x:Name=\"PaneFrameBorder\"",StringComparison.Ordinal),$"{file} highlighted pane frame missing");}}
 void TestVersionDisplaySuppressesSourceRevision(){var root=FindRepositoryRoot();var props=XDocument.Load(Path.Combine(root,"Directory.Build.props"));var values=props.Descendants().ToDictionary(x=>x.Name.LocalName,x=>x.Value,StringComparer.OrdinalIgnoreCase);Assert(values.TryGetValue("IncludeSourceRevisionInInformationalVersion",out var include)&&string.Equals(include,"false",StringComparison.OrdinalIgnoreCase),"source revision suffix suppression missing");var appInfo=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Infrastructure","AppInfo.cs"));Assert(appInfo.Contains("IndexOf('+')",StringComparison.Ordinal),"AppInfo defensive '+' metadata stripping missing");}
 void TestNewWorkspaceFeedback(){var main=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));Assert(main.Contains("ResetWorkspaceToDefaults()",StringComparison.Ordinal),"New Workspace reset helper missing");Assert(main.Contains("_newWorkspaceResetCount++",StringComparison.Ordinal),"repeated New Workspace reset sequence feedback missing");Assert(main.Contains("New Workspace project created at",StringComparison.Ordinal),"visible New Workspace timestamp feedback missing");}
-void TestBrowserInputHandoff()
-{
-    var root=FindRepositoryRoot();var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
-    Assert(host.Contains("FirefoxInputCoordinator.RegisterDock",StringComparison.Ordinal),"BrowserDockHost does not register dock ownership with central coordinator");
-    Assert(host.Contains("FirefoxInputCoordinator.FocusRoot",StringComparison.Ordinal),"BrowserDockHost does not delegate root focus to central coordinator");
-    Assert(!host.Contains("_inputQueuesAttached",StringComparison.Ordinal),"per-pane bridge state must not return to BrowserDockHost");
-    Assert(coordinator.Contains("Dictionary<BridgeKey, ThreadBridgeState>",StringComparison.Ordinal),"per-thread bridge state table missing");
-    Assert(coordinator.Contains("BridgeRefCount",StringComparison.Ordinal),"reference-counted bridge diagnostics missing");
-    Assert(coordinator.Contains("Persistent Firefox input bridge attached",StringComparison.Ordinal),"persistent bridge attach path missing");
-    Assert(coordinator.Contains("Persistent Firefox input bridge detached after last dock",StringComparison.Ordinal),"last-dock bridge detach path missing");
-    Assert(coordinator.Contains("AttachThreadInput(key.WorkspaceThreadId, key.BrowserThreadId, true)",StringComparison.Ordinal),"persistent AttachThreadInput attach missing");
-    Assert(coordinator.Contains("AttachThreadInput(registration.Key.WorkspaceThreadId, registration.Key.BrowserThreadId, false)",StringComparison.Ordinal),"reference-counted AttachThreadInput detach missing");
-    Assert(coordinator.Contains("SetFocus(browserHwnd)",StringComparison.Ordinal),"Firefox root SetFocus handoff missing");
-    Assert(!coordinator.Contains("TemporaryInputBridgeAttached",StringComparison.Ordinal),"temporary-bridge focus transaction diagnostics should be removed in rc17");
-}
-void TestNoChildHwndFocusGuessing(){var root=FindRepositoryRoot();var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));Assert(!host.Contains("FindPreferredContentHwnd",StringComparison.Ordinal)&&!coordinator.Contains("FindPreferredContentHwnd",StringComparison.Ordinal),"Firefox child-HWND guessing returned");Assert(!host.Contains("EnumChildWindows",StringComparison.Ordinal)&&!coordinator.Contains("EnumChildWindows",StringComparison.Ordinal),"normal Browser focus path enumerates Firefox child HWNDs");}
-void TestMultiPanePassGateDocumented(){var note=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"docs","releases","v0.0.6rc17.md"));foreach(var token in new[]{"English/number","Zhuyin","Show IDs","B1","B8","close","reopen","runtime"})Assert(note.Contains(token,StringComparison.OrdinalIgnoreCase),$"rc17 manual Browser activation gate missing token '{token}'");}
 void TestNewWorkspaceConfirmation(){var main=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));Assert(main.Contains("ConfirmCreateNewWorkspace()",StringComparison.Ordinal),"New Workspace explicit confirmation helper missing");Assert(main.Contains("Create a new Workspace project?",StringComparison.Ordinal),"clean Workspace confirmation prompt missing");Assert(main.Contains("Save changes before creating a new Workspace?",StringComparison.Ordinal),"dirty Workspace Save/Discard/Cancel prompt missing");}
 
-void TestImeInstrumentation()
+void TestNativePassThrough()
+{
+    var root=FindRepositoryRoot();
+    var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
+    var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
+    Assert(host.Contains("native Firefox input is pass-through",StringComparison.Ordinal),"dock pass-through declaration missing");
+    Assert(host.Contains("FirefoxInputCoordinator.MarkActiveRoot(_browserHwnd, reason)",StringComparison.Ordinal),"native Browser click does not record active root");
+    Assert(!host.Contains("FirefoxInputCoordinator.RegisterDock",StringComparison.Ordinal),"normal dock still registers persistent bridge ownership");
+    Assert(!host.Contains("FocusBrowser(reason);",StringComparison.Ordinal),"normal native Browser mouse activation still forces root focus");
+    Assert(!coordinator.Contains("Dictionary<BridgeKey, ThreadBridgeState>",StringComparison.Ordinal),"persistent per-thread bridge table returned");
+    Assert(!coordinator.Contains("BridgeRefCount",StringComparison.Ordinal),"persistent bridge refcount returned");
+    Assert(coordinator.Contains("NativeInputMode=PassThrough",StringComparison.Ordinal),"pass-through diagnostics missing");
+}
+
+void TestExplicitRecoveryOnly()
+{
+    var root=FindRepositoryRoot();
+    var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
+    var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
+    Assert(coordinator.Contains("TemporaryInputBridgeAttached",StringComparison.Ordinal)&&coordinator.Contains("TemporaryInputBridgeDetached",StringComparison.Ordinal),"temporary recovery bridge diagnostics missing");
+    Assert(coordinator.Contains("AttachThreadInput(workspaceThreadId, browserThreadId, true)",StringComparison.Ordinal),"temporary recovery attach missing");
+    Assert(coordinator.Contains("AttachThreadInput(workspaceThreadId, browserThreadId, false)",StringComparison.Ordinal),"temporary recovery detach missing");
+    Assert(coordinator.Contains("finally",StringComparison.Ordinal),"recovery bridge is not protected by finally");
+    Assert(coordinator.Contains("SetFocus(browserHwnd)",StringComparison.Ordinal),"explicit root focus recovery missing");
+    Assert(host.Contains("TabIntoCore",StringComparison.Ordinal)&&host.Contains("FocusBrowser()",StringComparison.Ordinal),"TabIntoCore recovery path missing");
+    Assert(host.Contains("public void FocusBrowser(string reason)",StringComparison.Ordinal),"explicit Focus recovery overload missing");
+}
+
+void TestNoChildHwndFocusGuessing(){var root=FindRepositoryRoot();var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));Assert(!host.Contains("FindPreferredContentHwnd",StringComparison.Ordinal)&&!coordinator.Contains("FindPreferredContentHwnd",StringComparison.Ordinal),"Firefox child-HWND focus guessing returned");Assert(!host.Contains("EnumChildWindows",StringComparison.Ordinal)&&!coordinator.Contains("EnumChildWindows",StringComparison.Ordinal),"normal Browser focus path enumerates Firefox child HWNDs");}
+
+void TestNonFocusableChrome()
+{
+    var root=FindRepositoryRoot();
+    var mainXaml=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","MainWindow.xaml"));
+    var browserXaml=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserTile.xaml"));
+    Assert(mainXaml.Contains("<Setter Property=\"Focusable\" Value=\"False\"/>",StringComparison.Ordinal),"Workspace toolbar non-focusable style missing");
+    Assert(mainXaml.Contains("<Setter Property=\"KeyboardNavigation.IsTabStop\" Value=\"False\"/>",StringComparison.Ordinal),"Workspace toolbar non-tab-stop style missing");
+    foreach(var name in new[]{"MaximizePaneButton","ClosePaneButton","LaunchButton","DockExistingButton","FocusButton","DetachButton"})
+        Assert(browserXaml.Contains($"x:Name=\"{name}\" Focusable=\"False\" KeyboardNavigation.IsTabStop=\"False\"",StringComparison.Ordinal),$"Browser chrome {name} can still take keyboard focus");
+}
+
+void TestLayoutDoesNotForceFocus()
+{
+    var main=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));
+    Assert(!main.Contains("ScheduleActiveBrowserFocusAfterLayout",StringComparison.Ordinal),"automatic active Browser focus recovery still exists");
+    Assert(!main.Contains("RecoverBrowserFocusAfterLayout",StringComparison.Ordinal),"layout path still calls Browser focus recovery");
+    Assert(main.Contains("ScheduleBrowserRepaintAfterLayout",StringComparison.Ordinal),"deferred repaint-only layout path missing");
+    Assert(main.Contains("keyboard focus was not changed",StringComparison.Ordinal),"repaint-only diagnostic missing");
+}
+
+void TestImeDiagnosticOnly()
 {
     var root=FindRepositoryRoot();
     var native=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Interop","NativeMethods.cs"));
     var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
     var diag=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","InputLanguageDiagnostics.cs"));
-    var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
     var main=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));
-    Assert(native.Contains("GetKeyboardLayout",StringComparison.Ordinal),"GetKeyboardLayout diagnostic P/Invoke missing");
-    Assert(native.Contains("GetGUIThreadInfo",StringComparison.Ordinal),"GetGUIThreadInfo diagnostic P/Invoke missing");
+    Assert(native.Contains("GetKeyboardLayout",StringComparison.Ordinal)&&native.Contains("GetGUIThreadInfo",StringComparison.Ordinal),"HKL/GUI diagnostics missing");
     foreach(var token in new[]{"WM_INPUTLANGCHANGEREQUEST","WM_INPUTLANGCHANGE","WM_IME_SETCONTEXT","WM_IME_STARTCOMPOSITION","WM_IME_COMPOSITION","WM_IME_ENDCOMPOSITION"}) Assert(native.Contains(token,StringComparison.Ordinal)&&diag.Contains(token,StringComparison.Ordinal),$"IME/input-language diagnostic message missing: {token}");
-    Assert(coordinator.Contains("Firefox input-state transition observed",StringComparison.Ordinal),"periodic Firefox input-state transition diagnostic missing");
-    Assert(coordinator.Contains("WorkspaceHKL",StringComparison.Ordinal)&&coordinator.Contains("BrowserHKL",StringComparison.Ordinal)&&coordinator.Contains("GuiFocus",StringComparison.Ordinal),"HKL/GUI-thread evidence missing");
-    Assert(host.Contains("InputLanguageDiagnostics.LogWindowMessage(\"BrowserDockHost\"",StringComparison.Ordinal),"HwndHost message diagnostics missing");
-    Assert(main.Contains("InstallInputMessageDiagnostics",StringComparison.Ordinal)&&main.Contains("InputLanguageDiagnostics.LogWindowMessage(\"WPF.MainWindow\"",StringComparison.Ordinal),"WPF top-level message diagnostics missing");
-    Assert(!coordinator.Contains("SendMessage(browserHwnd, NativeMethods.WM_IME_COMPOSITION",StringComparison.Ordinal),"coordinator must not synthesize IME composition messages");
-    Assert(!coordinator.Contains("ActivateKeyboardLayout",StringComparison.Ordinal),"rc17 must not force thread keyboard layouts with ActivateKeyboardLayout");
-    Assert(coordinator.Contains("WM_INPUTLANGCHANGEREQUEST",StringComparison.Ordinal)&&coordinator.Contains("PostMessage",StringComparison.Ordinal),"rc16 active-root input-language request synchronization missing");
+    Assert(coordinator.Contains("Firefox input-language state observed without synchronization",StringComparison.Ordinal),"diagnostic-only HKL observation missing");
+    Assert(main.Contains("WPF.MainWindow.WM_INPUTLANGCHANGE.DiagnosticOnly",StringComparison.Ordinal),"MainWindow input-language path is not explicitly diagnostic-only");
+    Assert(!coordinator.Contains("PostMessage(",StringComparison.Ordinal),"rc18 must not post input-language changes into Firefox");
+    Assert(!coordinator.Contains("ActivateKeyboardLayout",StringComparison.Ordinal),"rc18 must not force keyboard layouts");
+    Assert(!coordinator.Contains("SendMessage(browserHwnd, NativeMethods.WM_IME_COMPOSITION",StringComparison.Ordinal),"rc18 must not synthesize IME composition");
 }
 
-void TestBrowserMaximizeRestoreFocusRecovery()
+void TestManualPassGateDocumented()
 {
-    var root=FindRepositoryRoot();
-    var main=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));
-    var tile=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserTile.xaml.cs"));
-    var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
-    Assert(main.Contains("ScheduleBrowserFocusAfterLayout(tile",StringComparison.Ordinal),"maximize path does not schedule deferred Firefox focus recovery");
-    Assert(main.Contains("RestoreMaximizedPaneIfNeeded(true",StringComparison.Ordinal),"explicit restore path does not request Firefox focus recovery");
-    Assert(main.Contains("DispatcherPriority.ContextIdle",StringComparison.Ordinal),"focus recovery is not deferred until after WPF layout/render transition");
-    Assert(main.Contains("MaximizeCompleted",StringComparison.Ordinal)&&main.Contains("RestoreCompleted",StringComparison.Ordinal),"maximize/restore focus diagnostics missing");
-    Assert(tile.Contains("RecoverBrowserFocusAfterLayout",StringComparison.Ordinal)&&tile.Contains("Keyboard.ClearFocus()",StringComparison.Ordinal),"BrowserTile does not release WPF button focus before Firefox recovery");
-    Assert(host.Contains("public void FocusBrowser(string reason)",StringComparison.Ordinal),"BrowserDockHost reasoned root-focus recovery overload missing");
-    Assert(!main.Contains("WM_IME_COMPOSITION",StringComparison.Ordinal),"maximize/restore path must not synthesize IME composition");
-}
-
-
-void TestNativeBrowserActivationOwnership()
-{
-    var root=FindRepositoryRoot();
-    var native=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Interop","NativeMethods.cs"));
-    var host=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserDockHost.cs"));
-    var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
-    var tile=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Controls","BrowserTile.xaml.cs"));
-    var main=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));
-    Assert(native.Contains("WM_PARENTNOTIFY",StringComparison.Ordinal)&&native.Contains("WM_MOUSEACTIVATE",StringComparison.Ordinal),"native Browser activation message constants missing");
-    Assert(host.Contains("IsNativeBrowserMouseDown",StringComparison.Ordinal)&&host.Contains("WM_PARENTNOTIFY.MouseDown",StringComparison.Ordinal),"BrowserDockHost native child-click activation path missing");
-    Assert(host.Contains("duplicate focus handoff suppressed",StringComparison.Ordinal),"WM_MOUSEACTIVATE duplicate focus handoff suppression missing");
-    Assert(host.Contains("NativeBrowserActivated",StringComparison.Ordinal)&&tile.Contains("NativeBrowserActivated",StringComparison.Ordinal)&&main.Contains("BrowserPane_NativeBrowserActivated",StringComparison.Ordinal),"native Browser activation event chain missing");
-    Assert(coordinator.Contains("ActiveBrowserHwnd",StringComparison.Ordinal)&&coordinator.Contains("MarkActiveRoot",StringComparison.Ordinal),"central active Firefox root ownership missing");
-    Assert(host.Contains("FocusBrowser(reason)",StringComparison.Ordinal),"native activation does not perform Firefox root focus recovery");
-}
-
-void TestActiveBrowserLayoutRecovery()
-{
-    var main=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));
-    Assert(main.Contains("ScheduleActiveBrowserFocusAfterLayout",StringComparison.Ordinal),"active Browser layout-recovery helper missing");
-    foreach(var token in new[]{"ShowIdsEnabledCompleted","ShowIdsDisabledCompleted","LayoutModeToggleCompleted","AddBrowserCompleted","WorkspaceViewportResizeCompleted"})
-        Assert(main.Contains(token,StringComparison.Ordinal),$"active Browser recovery reason missing: {token}");
-    Assert(main.Contains("FirefoxInputCoordinator.ActiveBrowserHwnd",StringComparison.Ordinal),"layout recovery is not keyed by the central active Firefox root");
-    Assert(main.Contains("ClearActiveRoot",StringComparison.Ordinal)&&main.Contains("FilePaneActivation",StringComparison.Ordinal),"File-pane activation does not prevent later Browser focus theft");
-}
-
-void TestActiveBrowserInputLanguageSync()
-{
-    var root=FindRepositoryRoot();
-    var native=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Interop","NativeMethods.cs"));
-    var coordinator=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","Browser","FirefoxInputCoordinator.cs"));
-    var main=File.ReadAllText(Path.Combine(root,"src","AIEngineeringWorkspace.App","MainWindow.xaml.cs"));
-    Assert(native.Contains("PostMessage",StringComparison.Ordinal),"PostMessage P/Invoke missing for input-language request");
-    Assert(coordinator.Contains("SynchronizeActiveInputLanguage",StringComparison.Ordinal),"active Browser input-language synchronization helper missing");
-    Assert(coordinator.Contains("RequestInputLanguageChangeLocked",StringComparison.Ordinal)&&coordinator.Contains("WM_INPUTLANGCHANGEREQUEST",StringComparison.Ordinal),"Firefox input-language request path missing");
-    Assert(main.Contains("WPF.MainWindow.WM_INPUTLANGCHANGE",StringComparison.Ordinal),"MainWindow does not synchronize the active Browser after input-language change");
-    Assert(!coordinator.Contains("ActivateKeyboardLayout",StringComparison.Ordinal),"input-language synchronization must not force ActivateKeyboardLayout");
-    Assert(!coordinator.Contains("WM_IME_STARTCOMPOSITION",StringComparison.Ordinal)&&!coordinator.Contains("WM_IME_ENDCOMPOSITION",StringComparison.Ordinal),"coordinator must not become an IME composition proxy");
+    var note=File.ReadAllText(Path.Combine(FindRepositoryRoot(),"docs","releases","v0.0.6rc18.md"));
+    foreach(var token in new[]{"B1","B8","B7","Zhuyin","Show IDs","Auto Fit","close","reopen","NativeInputMode=PassThrough","PersistentInputBridgeAttached=False"})
+        Assert(note.Contains(token,StringComparison.OrdinalIgnoreCase),$"rc18 manual pass-through gate missing token '{token}'");
 }
 
 string FindRepositoryRoot(){var current=new DirectoryInfo(AppContext.BaseDirectory);while(current is not null){if(File.Exists(Path.Combine(current.FullName,"Directory.Build.props")))return current.FullName;current=current.Parent;}throw new InvalidOperationException("repository root not found");}

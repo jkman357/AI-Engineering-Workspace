@@ -1,10 +1,10 @@
 <Project>
   <PropertyGroup>
-    <WorkspaceVersionLabel>v0.0.6rc17</WorkspaceVersionLabel>
-    <Version>0.0.6-rc17</Version>
+    <WorkspaceVersionLabel>v0.0.6rc18</WorkspaceVersionLabel>
+    <Version>0.0.6-rc18</Version>
     <AssemblyVersion>0.0.6.0</AssemblyVersion>
-    <FileVersion>0.0.6.17</FileVersion>
-    <InformationalVersion>v0.0.6rc17</InformationalVersion>
+    <FileVersion>0.0.6.18</FileVersion>
+    <InformationalVersion>v0.0.6rc18</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>
