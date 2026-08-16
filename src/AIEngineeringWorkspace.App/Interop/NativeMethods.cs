@@ -33,11 +33,17 @@ internal static class NativeMethods
     internal const int SW_RESTORE = 9;
     internal const uint WM_SETREDRAW = 0x000B;
     internal const uint WM_CLOSE = 0x0010;
+    internal const uint WM_MOUSEACTIVATE = 0x0021;
     internal const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
     internal const uint WM_INPUTLANGCHANGE = 0x0051;
     internal const uint WM_IME_STARTCOMPOSITION = 0x010D;
     internal const uint WM_IME_ENDCOMPOSITION = 0x010E;
     internal const uint WM_IME_COMPOSITION = 0x010F;
+    internal const uint WM_PARENTNOTIFY = 0x0210;
+    internal const uint WM_LBUTTONDOWN = 0x0201;
+    internal const uint WM_RBUTTONDOWN = 0x0204;
+    internal const uint WM_MBUTTONDOWN = 0x0207;
+    internal const uint WM_XBUTTONDOWN = 0x020B;
     internal const uint WM_IME_SETCONTEXT = 0x0281;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
     internal const uint RDW_INVALIDATE = 0x0001;
@@ -110,6 +116,7 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetFocus(IntPtr hWnd);
     [DllImport("user32.dll")] internal static extern IntPtr GetFocus();
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
     [DllImport("user32.dll", SetLastError = true)] internal static extern uint SendInput(uint inputCount, [In] INPUT[] inputs, int inputSize);
     [DllImport("kernel32.dll")] internal static extern uint GetCurrentThreadId();

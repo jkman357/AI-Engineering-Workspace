@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc15**
+Current version: **v0.0.6rc16**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -42,6 +42,22 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc16 — Native Firefox Activation Coordination
+
+rc15 real-machine testing showed that Firefox focus handoff can succeed at dock time and then be lost again when WPF regains foreground/focus during later pane creation, Auto Fit, Show IDs, or other Workspace transitions. Opening more Browser panes made the symptom easier to reproduce, and deleting/reopening panes could temporarily recover input because a new dock transaction focused Firefox again.
+
+rc16 treats this as one ownership problem instead of separate Browser-count, Show IDs, maximize, and IME defects:
+
+- `FirefoxInputCoordinator` records one active docked Firefox root HWND;
+- `BrowserDockHost` observes native `WM_PARENTNOTIFY` mouse-down / `WM_MOUSEACTIVATE` notifications and performs the existing one-shot `AttachThreadInput` -> `SetFocus` -> detach handoff when the user actually clicks Firefox;
+- WPF Browser chrome and native Browser clicks update the same central active-root ownership;
+- File-pane activation clears active-Browser ownership so later Workspace transitions do not steal focus away from File Manager;
+- Show IDs, Auto Fit/layout toggle, Add Browser, Workspace viewport resize, and Browser maximize/restore recover only the recorded active Browser after layout/repaint completes;
+- when the WPF thread accepts a new input language, rc16 posts `WM_INPUTLANGCHANGEREQUEST` only to the active Firefox root if the Firefox thread HKL is stale;
+- rc16 still does not enumerate guessed Firefox child HWNDs, call `ActivateKeyboardLayout`, or synthesize `WM_IME_COMPOSITION`.
+
+The rc16 acceptance gate stresses B1-B8, repeated cross-pane typing, Show IDs on/off, close/reopen cycles, English/number and Zhuyin switching, and maximize/restore without requiring the `⌖` Focus recovery button.
 
 ## v0.0.6rc15 — Browser Maximize / Restore Focus Recovery
 
@@ -115,7 +131,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc15.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc16.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

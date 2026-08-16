@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.6rc16
+
+- centralize active docked Firefox root-HWND ownership in `FirefoxInputCoordinator`;
+- recover Firefox keyboard focus from native Browser mouse activation (`WM_PARENTNOTIFY` / `WM_MOUSEACTIVATE`) instead of relying on WPF `PreviewMouseDown` over hosted Win32 content;
+- keep cross-thread focus recovery transactional with temporary `AttachThreadInput` and immediate detach;
+- recover only the active Browser after Show IDs, layout-mode, Add Browser, viewport resize, and maximize/restore transitions;
+- clear active-Browser ownership when a File pane is activated to avoid focus theft from File Manager;
+- synchronize a stale Firefox-thread HKL by posting `WM_INPUTLANGCHANGEREQUEST` to the active Firefox root after WPF input-language changes;
+- continue to avoid Firefox child-HWND focus guessing, `ActivateKeyboardLayout`, and synthetic IME composition;
+- add regression coverage and a B1-B8 real-machine gate for repeated typing, Show IDs, close/reopen, English/number + Zhuyin, and maximize/restore;
+- stamp application/build/run/test metadata as `v0.0.6rc16` / `0.0.6-rc16` / FileVersion `0.0.6.16`;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc15
 
 - restore Firefox root-HWND keyboard focus after Browser Workspace maximize/restore transitions;

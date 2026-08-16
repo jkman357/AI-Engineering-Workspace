@@ -21,6 +21,7 @@ public sealed class BrowserDockHost : HwndHost
     private uint _workspaceInputThreadId;
 
     public event EventHandler? DockedWindowLost;
+    public event EventHandler? NativeBrowserActivated;
 
     public bool HasDockedWindow => _browserHwnd != IntPtr.Zero;
     public bool IsDocked => _browserHwnd != IntPtr.Zero && NativeMethods.IsWindow(_browserHwnd);
@@ -53,8 +54,33 @@ public sealed class BrowserDockHost : HwndHost
     protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         InputLanguageDiagnostics.LogWindowMessage("BrowserDockHost", hwnd, msg, wParam, lParam);
+        if (IsDocked && IsNativeBrowserActivationMessage(msg, wParam))
+        {
+            var reason = (uint)msg == NativeMethods.WM_MOUSEACTIVATE
+                ? "BrowserDockHost.WM_MOUSEACTIVATE"
+                : $"BrowserDockHost.WM_PARENTNOTIFY.MouseDown(0x{LowWord(wParam):X4})";
+            try
+            {
+                RuntimeLog.Debug($"Native Firefox activation observed. HostHWND=0x{_hostHwnd.ToInt64():X}; BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'");
+                NativeBrowserActivated?.Invoke(this, EventArgs.Empty);
+                FocusBrowser(reason);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error($"Native Firefox activation recovery failed. BrowserHWND=0x{_browserHwnd.ToInt64():X}; Reason='{reason}'", ex);
+            }
+        }
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
+
+    private static bool IsNativeBrowserActivationMessage(int msg, IntPtr wParam)
+    {
+        if ((uint)msg == NativeMethods.WM_MOUSEACTIVATE) return true;
+        if ((uint)msg != NativeMethods.WM_PARENTNOTIFY) return false;
+        return LowWord(wParam) is NativeMethods.WM_LBUTTONDOWN or NativeMethods.WM_RBUTTONDOWN or NativeMethods.WM_MBUTTONDOWN or NativeMethods.WM_XBUTTONDOWN;
+    }
+
+    private static uint LowWord(IntPtr value) => (uint)(value.ToInt64() & 0xFFFF);
 
     protected override void OnWindowPositionChanged(System.Windows.Rect rcBoundingBox)
     {
@@ -250,6 +276,12 @@ public sealed class BrowserDockHost : HwndHost
     }
 
     public void FocusBrowserContent() => FocusBrowser();
+
+    public void MarkActive(string reason)
+    {
+        if (!CheckDockedWindowHealth()) return;
+        FirefoxInputCoordinator.MarkActiveRoot(_browserHwnd, string.IsNullOrWhiteSpace(reason) ? "BrowserDockHost.MarkActive" : reason);
+    }
 
     public void ProbeInputState(string reason)
     {

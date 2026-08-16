@@ -24,16 +24,19 @@ public partial class BrowserTile : UserControl
     public event Action<BrowserTile, PaneResizeDirection, double, double>? ResizeRequested;
     public event Action<BrowserTile>? ActivateRequested;
     public event Action<BrowserTile>? MaximizeRequested;
+    public event Action<BrowserTile>? NativeBrowserActivated;
 
     internal PaneIdentity Identity { get; private set; } = PaneIdentity.Create(PaneKind.Browser, 1);
     public string TileId => Identity.DisplayName;
     public string EndpointAlias => Identity.Alias;
     public bool HasDockedWindow => BrowserHost.HasDockedWindow;
+    internal IntPtr BrowserHwnd => BrowserHost.BrowserHwnd;
     public int WorkspaceLaunchedWindowCount => _workspaceLaunchedWindows.Count;
 
     public BrowserTile()
     {
         InitializeComponent();
+        BrowserHost.NativeBrowserActivated += (_, _) => NativeBrowserActivated?.Invoke(this);
         BrowserHost.DockedWindowLost += (_, _) =>
         {
             var lostHwnd = _dockedWindow?.Hwnd ?? IntPtr.Zero;
@@ -73,6 +76,7 @@ public partial class BrowserTile : UserControl
 
     internal void FitBrowserToPane() => BrowserHost.ResizeDockedWindow();
     internal void FinalizeBrowserRepaint() => BrowserHost.FinalizeResizeRepaint();
+    internal void MarkBrowserActive(string reason) => BrowserHost.MarkActive(reason);
 
     internal void RecoverBrowserFocusAfterLayout(string reason)
     {

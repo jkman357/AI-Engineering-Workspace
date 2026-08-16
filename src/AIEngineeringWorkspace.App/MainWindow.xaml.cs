@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using AIEngineeringWorkspace.Controls;
 using AIEngineeringWorkspace.Browser;
 using AIEngineeringWorkspace.Infrastructure;
+using AIEngineeringWorkspace.Interop;
 using AIEngineeringWorkspace.Workspace;
 
 namespace AIEngineeringWorkspace;
@@ -41,7 +42,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Browser Maximize / Restore Focus Recovery";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Native Firefox Activation Coordination";
         SourceInitialized += (_, _) => InstallInputMessageDiagnostics();
         _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _healthTimer.Tick += (_, _) => { foreach (var tile in _browserPanes.ToArray()) tile.CheckHealth(); };
@@ -56,7 +57,17 @@ public partial class MainWindow : Window
                 UpdatePaneCounts();
             }, DispatcherPriority.Loaded);
         };
-        WorkspaceScrollViewer.SizeChanged += (_, _) => { if (_workspaceInitialized && _autoFitLayout && _maximizedPane is null) Dispatcher.InvokeAsync(ApplyAutoFitLayout, DispatcherPriority.Background); };
+        WorkspaceScrollViewer.SizeChanged += (_, _) =>
+        {
+            if (_workspaceInitialized && _autoFitLayout && _maximizedPane is null)
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    ApplyAutoFitLayout();
+                    ScheduleActiveBrowserFocusAfterLayout("WorkspaceViewportResizeCompleted");
+                }, DispatcherPriority.Background);
+            }
+        };
         Closing += MainWindow_Closing;
     }
 
@@ -78,6 +89,10 @@ public partial class MainWindow : Window
     private IntPtr MainWindowInputMessageHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         InputLanguageDiagnostics.LogWindowMessage("WPF.MainWindow", hwnd, msg, wParam, lParam);
+        if ((uint)msg == NativeMethods.WM_INPUTLANGCHANGE)
+        {
+            FirefoxInputCoordinator.SynchronizeActiveInputLanguage(NativeMethods.GetCurrentThreadId(), "WPF.MainWindow.WM_INPUTLANGCHANGE");
+        }
         return IntPtr.Zero;
     }
 
@@ -116,7 +131,7 @@ public partial class MainWindow : Window
     {
         var displayIndex=identityOverride?.DisplayIndex??AllocateDisplayIndex(PaneKind.Browser);if(displayIndex is null){SetWorkspaceStatus($"Browser pane limit reached ({MaxBrowserPanes}).");return null;}
         var identity=identityOverride??PaneIdentity.Create(PaneKind.Browser,displayIndex.Value);var tile=new BrowserTile();tile.Configure(identity,DefaultBrowserUrl);tile.SetEndpointIdVisibility(_showEndpointIds);
-        tile.StatusChanged+=BrowserPane_StatusChanged;tile.ClosePaneRequested+=BrowserPane_ClosePaneRequested;tile.MoveStarted+=BrowserPane_MoveStarted;tile.MoveRequested+=BrowserPane_MoveRequested;tile.MoveCompleted+=BrowserPane_MoveCompleted;tile.ResizeRequested+=BrowserPane_ResizeRequested;tile.ActivateRequested+=BrowserPane_ActivateRequested;tile.MaximizeRequested+=BrowserPane_MaximizeRequested;
+        tile.StatusChanged+=BrowserPane_StatusChanged;tile.ClosePaneRequested+=BrowserPane_ClosePaneRequested;tile.MoveStarted+=BrowserPane_MoveStarted;tile.MoveRequested+=BrowserPane_MoveRequested;tile.MoveCompleted+=BrowserPane_MoveCompleted;tile.ResizeRequested+=BrowserPane_ResizeRequested;tile.ActivateRequested+=BrowserPane_ActivateRequested;tile.MaximizeRequested+=BrowserPane_MaximizeRequested;tile.NativeBrowserActivated+=BrowserPane_NativeBrowserActivated;
         tile.Width=width;tile.Height=height;_browserPanes.Add(tile);WorkspaceCanvas.Children.Add(tile);SetPanePosition(tile,position??FindFreePosition(width,height));BringToFront(tile);EnsureCanvasBounds(tile);UpdatePaneCounts();if(_workspaceInitialized&&_autoFitLayout&&_maximizedPane is null)ApplyAutoFitLayout();return tile;
     }
 
@@ -136,7 +151,7 @@ public partial class MainWindow : Window
     {
         if(_closing||!_filePanes.Contains(pane))return;var alias=pane.Identity.Alias;UnsubscribeFilePane(pane);WorkspaceCanvas.Children.Remove(pane);_filePanes.Remove(pane);_moveOrigins.Remove(pane);UpdatePaneCounts();if(_autoFitLayout&&_maximizedPane is null)ApplyAutoFitLayout();MarkWorkspaceDirty($"Closed {alias}");SetWorkspaceStatus($"Closed {alias}. Its display index is now available for reuse.");
     }
-    private void UnsubscribeBrowserPane(BrowserTile tile){tile.StatusChanged-=BrowserPane_StatusChanged;tile.ClosePaneRequested-=BrowserPane_ClosePaneRequested;tile.MoveStarted-=BrowserPane_MoveStarted;tile.MoveRequested-=BrowserPane_MoveRequested;tile.MoveCompleted-=BrowserPane_MoveCompleted;tile.ResizeRequested-=BrowserPane_ResizeRequested;tile.ActivateRequested-=BrowserPane_ActivateRequested;tile.MaximizeRequested-=BrowserPane_MaximizeRequested;}
+    private void UnsubscribeBrowserPane(BrowserTile tile){tile.StatusChanged-=BrowserPane_StatusChanged;tile.ClosePaneRequested-=BrowserPane_ClosePaneRequested;tile.MoveStarted-=BrowserPane_MoveStarted;tile.MoveRequested-=BrowserPane_MoveRequested;tile.MoveCompleted-=BrowserPane_MoveCompleted;tile.ResizeRequested-=BrowserPane_ResizeRequested;tile.ActivateRequested-=BrowserPane_ActivateRequested;tile.MaximizeRequested-=BrowserPane_MaximizeRequested;tile.NativeBrowserActivated-=BrowserPane_NativeBrowserActivated;}
     private void UnsubscribeFilePane(FilePane pane){pane.StatusChanged-=FilePane_StatusChanged;pane.ClosePaneRequested-=FilePane_ClosePaneRequested;pane.MoveStarted-=FilePane_MoveStarted;pane.MoveRequested-=FilePane_MoveRequested;pane.MoveCompleted-=FilePane_MoveCompleted;pane.ResizeRequested-=FilePane_ResizeRequested;pane.ActivateRequested-=FilePane_ActivateRequested;pane.PathChanged-=FilePane_PathChanged;}
     private void BrowserPane_StatusChanged(BrowserTile tile,string message)=>SetWorkspaceStatus($"{tile.Identity.Alias}: {message}");
     private void FilePane_StatusChanged(FilePane pane,string message)=>SetWorkspaceStatus($"{pane.Identity.Alias}: {message}");
@@ -145,7 +160,23 @@ public partial class MainWindow : Window
     private void BrowserPane_MoveRequested(BrowserTile tile,double dx,double dy)=>MovePane(tile,dx,dy); private void FilePane_MoveRequested(FilePane pane,double dx,double dy)=>MovePane(pane,dx,dy);
     private void BrowserPane_MoveCompleted(BrowserTile tile)=>CompletePaneMove(tile); private void FilePane_MoveCompleted(FilePane pane)=>CompletePaneMove(pane);
     private void BrowserPane_ResizeRequested(BrowserTile tile,PaneResizeDirection direction,double dx,double dy)=>ResizePane(tile,direction,dx,dy); private void FilePane_ResizeRequested(FilePane pane,PaneResizeDirection direction,double dx,double dy)=>ResizePane(pane,direction,dx,dy);
-    private void BrowserPane_ActivateRequested(BrowserTile tile)=>BringToFront(tile); private void FilePane_ActivateRequested(FilePane pane)=>BringToFront(pane); private void BrowserPane_MaximizeRequested(BrowserTile tile)=>ToggleBrowserPaneMaximize(tile);
+    private void BrowserPane_ActivateRequested(BrowserTile tile)
+    {
+        BringToFront(tile);
+        if (tile.HasDockedWindow) tile.MarkBrowserActive($"{tile.Identity.Alias}.WpfChromeActivation");
+    }
+    private void BrowserPane_NativeBrowserActivated(BrowserTile tile)
+    {
+        if (!_browserPanes.Contains(tile)) return;
+        BringToFront(tile);
+        RuntimeLog.Debug($"[{tile.Identity.Alias}] Native Browser activation promoted pane z-order. BrowserHWND=0x{tile.BrowserHwnd.ToInt64():X}");
+    }
+    private void FilePane_ActivateRequested(FilePane pane)
+    {
+        FirefoxInputCoordinator.ClearActiveRoot($"{pane.Identity.Alias}.FilePaneActivation");
+        BringToFront(pane);
+    }
+    private void BrowserPane_MaximizeRequested(BrowserTile tile)=>ToggleBrowserPaneMaximize(tile);
 
     private void BeginPaneMove(FrameworkElement pane){if(_autoFitLayout)SetLayoutMode(false,"Manual pane move");_moveOrigins[pane]=GetPanePosition(pane);BringToFront(pane);}
     private void MovePane(FrameworkElement pane,double dx,double dy){var p=GetPanePosition(pane);SetPanePosition(pane,new Point(Math.Max(0,p.X+dx),Math.Max(0,p.Y+dy)));EnsureCanvasBounds(pane);}
@@ -242,6 +273,19 @@ public partial class MainWindow : Window
             tile.RecoverBrowserFocusAfterLayout(reason);
         },DispatcherPriority.ContextIdle);
     }
+    private void ScheduleActiveBrowserFocusAfterLayout(string reason)
+    {
+        var activeHwnd = FirefoxInputCoordinator.ActiveBrowserHwnd;
+        if (activeHwnd == IntPtr.Zero) return;
+        var tile = _browserPanes.FirstOrDefault(b => b.HasDockedWindow && b.BrowserHwnd == activeHwnd);
+        if (tile is null)
+        {
+            FirefoxInputCoordinator.ClearActiveRoot($"{reason}.ActiveBrowserMissing");
+            return;
+        }
+        ScheduleBrowserFocusAfterLayout(tile, reason);
+    }
+
     private void ClearMaximizedPaneState(BrowserTile tile){if(!ReferenceEquals(_maximizedPane,tile))return;_maximizedPane=null;tile.SetMaximizedState(false);foreach(var p in GetAllPanes())p.Visibility=Visibility.Visible;}
 
     private Point FindFreePosition(double width,double height){const double step=36;var sw=Math.Max(WorkspaceCanvas.Width,1200);var sh=Math.Max(WorkspaceCanvas.Height,700);for(var y=PaneGap;y<=sh;y+=step)for(var x=PaneGap;x<=sw;x+=step){var candidate=new Rect(x,y,width,height);if(GetAllPanes().All(p=>!InflateRect(GetPaneRect(p),PaneGap).IntersectsWith(candidate)))return new Point(x,y);}WorkspaceCanvas.Height=sh+height+PaneGap*2;return new Point(PaneGap,sh+PaneGap);}
@@ -258,9 +302,29 @@ public partial class MainWindow : Window
     private static string FormatPoint(Point point)=>$"({point.X:0},{point.Y:0})";
 
     private void AddFilePaneButton_Click(object sender,RoutedEventArgs e){RestoreMaximizedPaneIfNeeded();if(AddFilePane() is not null)MarkWorkspaceDirty("File pane added");}
-    private void AddBrowserPaneButton_Click(object sender,RoutedEventArgs e){RestoreMaximizedPaneIfNeeded();if(AddBrowserPane() is not null)MarkWorkspaceDirty("Browser pane added");}
-    private void LayoutModeButton_Click(object sender,RoutedEventArgs e)=>SetLayoutMode(!_autoFitLayout,"Toolbar toggle");
-    private void ShowIdsButton_Click(object sender,RoutedEventArgs e){_showEndpointIds=!_showEndpointIds;foreach(var p in _browserPanes)p.SetEndpointIdVisibility(_showEndpointIds);foreach(var p in _filePanes)p.SetEndpointIdVisibility(_showEndpointIds);ShowIdsButton.ToolTip=_showEndpointIds?"Hide 64×64 routing endpoint badges (B1-B8 / F1-F4)":"Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";MarkWorkspaceDirty("Endpoint ID display changed");}
+    private void AddBrowserPaneButton_Click(object sender,RoutedEventArgs e)
+    {
+        RestoreMaximizedPaneIfNeeded();
+        if(AddBrowserPane() is not null)
+        {
+            MarkWorkspaceDirty("Browser pane added");
+            ScheduleActiveBrowserFocusAfterLayout("AddBrowserCompleted");
+        }
+    }
+    private void LayoutModeButton_Click(object sender,RoutedEventArgs e)
+    {
+        SetLayoutMode(!_autoFitLayout,"Toolbar toggle");
+        ScheduleActiveBrowserFocusAfterLayout("LayoutModeToggleCompleted");
+    }
+    private void ShowIdsButton_Click(object sender,RoutedEventArgs e)
+    {
+        _showEndpointIds=!_showEndpointIds;
+        foreach(var p in _browserPanes)p.SetEndpointIdVisibility(_showEndpointIds);
+        foreach(var p in _filePanes)p.SetEndpointIdVisibility(_showEndpointIds);
+        ShowIdsButton.ToolTip=_showEndpointIds?"Hide 64×64 routing endpoint badges (B1-B8 / F1-F4)":"Show 64×64 routing endpoint badges (B1-B8 / F1-F4)";
+        MarkWorkspaceDirty("Endpoint ID display changed");
+        ScheduleActiveBrowserFocusAfterLayout(_showEndpointIds?"ShowIdsEnabledCompleted":"ShowIdsDisabledCompleted");
+    }
     private void DetachAllButton_Click(object sender,RoutedEventArgs e){var count=_browserPanes.Count(x=>x.HasDockedWindow);foreach(var tile in _browserPanes.ToArray())if(tile.HasDockedWindow)tile.Detach();SetWorkspaceStatus(count==0?"Detach All: no Firefox windows were docked.":$"Detach All completed. Restored {count} Firefox window(s).");}
     private void UpdatePaneCounts(){var ba=string.Join(",",_browserPanes.OrderBy(p=>p.Identity.DisplayIndex).Select(p=>p.Identity.Alias));var fa=string.Join(",",_filePanes.OrderBy(p=>p.Identity.DisplayIndex).Select(p=>p.Identity.Alias));PaneCountTextBlock.Text=$"Standard user / API-free / {(_autoFitLayout?"Auto Fit":"Free Layout")} / {_browserPanes.Count} browser [{ba}] + {_filePanes.Count} file [{fa}]";}
     private void SetWorkspaceStatus(string message){WorkspaceStatusTextBlock.Text=message;WorkspaceStatusTextBlock.ToolTip=message;}
