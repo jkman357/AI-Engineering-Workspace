@@ -300,7 +300,43 @@ public sealed class BrowserDockHost : HwndHost
 
         _lastWidth = width;
         _lastHeight = height;
+        RequestBrowserRedraw(immediate: false);
         RuntimeLog.Debug($"Browser resize. HWND=0x{_browserHwnd.ToInt64():X}; Size={width}x{height}");
+    }
+
+    public void FinalizeResizeRepaint()
+    {
+        if (!CheckDockedWindowHealth())
+        {
+            return;
+        }
+
+        // Foreign HWNDs hosted inside WPF can leave stale pixels after rapid geometry changes.
+        // Force one final resize + redraw after the drag/reflow settles.
+        _lastWidth = -1;
+        _lastHeight = -1;
+        ResizeDockedWindow();
+        RequestBrowserRedraw(immediate: true);
+        RuntimeLog.Debug($"Browser final repaint requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; HostHWND=0x{_hostHwnd.ToInt64():X}");
+    }
+
+    private void RequestBrowserRedraw(bool immediate)
+    {
+        var flags = NativeMethods.RDW_INVALIDATE | NativeMethods.RDW_ALLCHILDREN | NativeMethods.RDW_FRAME;
+        if (immediate)
+        {
+            flags |= NativeMethods.RDW_ERASE | NativeMethods.RDW_ERASENOW | NativeMethods.RDW_UPDATENOW;
+        }
+
+        if (_hostHwnd != IntPtr.Zero && NativeMethods.IsWindow(_hostHwnd))
+        {
+            NativeMethods.RedrawWindow(_hostHwnd, IntPtr.Zero, IntPtr.Zero, flags);
+        }
+
+        if (_browserHwnd != IntPtr.Zero && NativeMethods.IsWindow(_browserHwnd))
+        {
+            NativeMethods.RedrawWindow(_browserHwnd, IntPtr.Zero, IntPtr.Zero, flags);
+        }
     }
 
     public void FocusBrowser()

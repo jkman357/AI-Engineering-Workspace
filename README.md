@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc06**
+Current version: **v0.0.6rc07**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -12,7 +12,7 @@ AI Engineering Workspace is a .NET 10 / WPF Windows desktop workspace that docks
 Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
 │  ├─ real Firefox HWND docking
-│  ├─ URL + Enter navigation
+│  ├─ Firefox-native address bar / navigation
 │  ├─ Workspace maximize / restore
 │  ├─ Launch + Dock / Dock Existing / Focus / Detach
 │  └─ per-window lifecycle ownership
@@ -31,6 +31,28 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc07 — Auto Fit Reflow + Browser Repaint + Endpoint Badges
+
+This RC continues the active **v0.0.6** line. It does not freeze `v0.0.6`.
+
+### Auto Fit reflow from the Workspace origin
+
+Auto Fit now treats layout as a deterministic reflow rather than preserving stale Canvas geometry. Panes are rebuilt from stable endpoint identity, the Workspace scroll position is reset to the top-left, and visible panes are fitted again after the WPF render pass. This prevents old Free Layout scroll offsets or pane positions from making a correctly reflowed grid appear to have a blank top-left region.
+
+### Browser repaint hardening
+
+A real Firefox HWND is still hosted inside WPF. During live geometry changes, the host now invalidates the foreign HWND and its child windows. When a resize drag or Auto Fit reflow finishes, the Browser pane performs one final fit + Win32 redraw pass to reduce stale pixels / resize ghosting.
+
+### Firefox owns browser navigation UI
+
+The Workspace Browser URL TextBox has been removed. Firefox already provides its own tab/address/navigation controls, so Browser panes now keep only Workspace-level controls: endpoint identity, Launch + Dock, Dock Existing, Focus recovery, Detach, maximize/restore, move/resize, and close.
+
+`Launch + Dock` still opens Firefox at the Workspace default startup URL (`https://www.google.com/`), but normal browsing and URL entry happen directly in Firefox. This also removes a WPF URL TextBox that could compete for keyboard focus.
+
+### Color-coded endpoint identity
+
+When `#` / Show IDs is enabled, `B1..B8` and `F1..F4` badges use distinct fixed colors for faster visual identification. The color is only a human-facing cue: routing identity remains the stable internal `PaneId` GUID plus the explicit B#/F# alias, never color alone.
 
 ## v0.0.6rc06 — Native Shell + Git Status + Resize Reliability
 
@@ -120,7 +142,7 @@ Each Browser pane has a small `□` control.
 - The docked Firefox HWND fills the Browser pane client region.
 - `❐` restores the previous Workspace layout.
 
-This is intentionally **not Firefox F11 monitor full-screen mode**. The Workspace retains ownership of pane identity, URL controls, close controls, status, and future routing UI.
+This is intentionally **not Firefox F11 monitor full-screen mode**. The Workspace retains ownership of pane identity, close controls, status, and future routing UI. (The Workspace URL control described by rc03 was removed in rc07; Firefox now owns normal address/navigation UI.)
 
 Browser panes still default to:
 
@@ -128,7 +150,7 @@ Browser panes still default to:
 https://www.google.com/
 ```
 
-Entering a URL and pressing Enter navigates only that Browser endpoint. If no browser is docked yet, Enter launches and docks Firefox using that URL.
+Historical note: rc03-rc06 exposed a Workspace URL field. rc07 removes that duplicate control; normal URL entry and navigation are handled directly by Firefox.
 
 ### Browser lifecycle safety
 
@@ -309,18 +331,18 @@ run.cmd
 
 Launcher/application diagnostics are written under `logs\runtime\` when logging is enabled.
 
-## v0.0.6rc06 test focus / resize / Shell integration
+## v0.0.6rc07 test focus / reflow / repaint / Shell integration
 
 1. Run `build.cmd` and then `run.cmd`.
-2. Switch to Free Layout and resize File panes from all four edges and all four corners. The cursor must change and the pane must resize continuously.
-3. Repeat resize with a docked Firefox Browser pane; the Firefox HWND must continue to fill the Browser client area.
-4. Right-click a `.zip` file. Verify the native Windows menu appears and, when registered on the machine, 7-Zip commands are present.
-5. Right-click a file supported by the installed comparison tool and verify its registered comparison command appears when the tool exposes a Shell extension.
-6. Navigate a File pane into a Git working tree. Verify Git badges appear on tracked/modified/untracked items.
-7. Right-click a Git file/folder and verify TortoiseGit commands appear when the installed TortoiseGit Shell extension exposes them.
-8. Exercise a safe Shell command such as Properties/Open and verify the File pane refreshes afterward.
-9. Re-test Browser Launch + Dock, page keyboard input, URL Enter navigation, Focus recovery, Detach, Auto Fit, pane maximize/restore, and Workspace shutdown lifecycle.
-10. If a Shell extension fails, attach the runtime log and note the selected file type and whether the same command appears in Windows Explorer.
+2. In Auto Fit, add/remove panes after using Free Layout and scrolling. Verify the remaining panes reflow from the top-left with no unexplained blank origin region.
+3. Switch to Free Layout and resize File panes from all four edges and all four corners. The cursor must change and the pane must resize continuously.
+4. Repeat resize with a docked Firefox Browser pane. Firefox must continue to fill the Browser client area and should not leave stale/duplicated pixels after resize completes.
+5. Verify Browser panes no longer show a Workspace URL TextBox. Use Firefox's own address bar for navigation.
+6. Enable `#` / Show IDs. Verify B#/F# badges are color-coded, readable, and remain the same alias while panes move.
+7. Right-click a `.zip` file. Verify the native Windows menu appears and, when registered on the machine, 7-Zip commands are present.
+8. Navigate a File pane into a Git working tree. Verify Git badges appear and TortoiseGit Shell commands are available when registered.
+9. Re-test Browser Launch + Dock, normal page keyboard input, Focus recovery, Detach, pane maximize/restore, and Workspace shutdown lifecycle.
+10. If repaint/focus/Shell behavior fails, attach the runtime log and note the pane alias, selected file type (if applicable), and exact action sequence.
 
 ## Current limits / non-goals
 

@@ -36,6 +36,13 @@ internal static class NativeMethods
     internal const uint WM_CLOSE = 0x0010;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
 
+    internal const uint RDW_INVALIDATE = 0x0001;
+    internal const uint RDW_ERASE = 0x0004;
+    internal const uint RDW_ALLCHILDREN = 0x0080;
+    internal const uint RDW_UPDATENOW = 0x0100;
+    internal const uint RDW_ERASENOW = 0x0200;
+    internal const uint RDW_FRAME = 0x0400;
+
     internal const uint INPUT_KEYBOARD = 1;
     internal const uint KEYEVENTF_KEYUP = 0x0002;
     internal const uint KEYEVENTF_UNICODE = 0x0004;
@@ -170,6 +177,10 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, [MarshalAs(UnmanagedType.Bool)] bool bRepaint);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

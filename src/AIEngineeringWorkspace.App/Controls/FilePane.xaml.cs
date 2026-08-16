@@ -46,6 +46,10 @@ public partial class FilePane : UserControl
         PaneTitleTextBlock.Text = identity.DisplayName;
         EndpointBadgeTextBlock.Text = identity.Alias;
         EndpointBadgeBorder.ToolTip = $"Routing endpoint {identity.Alias}\nPaneId={identity.PaneId:D}";
+        var badgeStyle = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
+        EndpointBadgeBorder.Background = badgeStyle.Background;
+        EndpointBadgeBorder.BorderBrush = badgeStyle.Border;
+        EndpointBadgeTextBlock.Foreground = badgeStyle.Foreground;
         NavigateTo(initialPath);
         RuntimeLog.Info($"[{Identity.Alias}] File pane configured. PaneId={Identity.PaneId:D}; DisplayIndex={Identity.DisplayIndex}; InitialPath='{initialPath}'");
     }

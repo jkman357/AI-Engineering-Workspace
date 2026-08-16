@@ -14,6 +14,7 @@ public partial class BrowserTile : UserControl
     private readonly Dictionary<IntPtr, BrowserWindowInfo> _workspaceLaunchedWindows = new();
     private CancellationTokenSource? _launchCts;
     private BrowserWindowInfo? _dockedWindow;
+    private string _initialUrl = "https://www.google.com/";
 
     public event Action<BrowserTile, string>? StatusChanged;
     public event Action<BrowserTile>? ClosePaneRequested;
@@ -54,10 +55,14 @@ public partial class BrowserTile : UserControl
         TileTitleTextBlock.Text = identity.DisplayName;
         EndpointBadgeTextBlock.Text = identity.Alias;
         EndpointBadgeBorder.ToolTip = $"Routing endpoint {identity.Alias}\nPaneId={identity.PaneId:D}";
-        UrlTextBox.Text = initialUrl;
+        var badgeStyle = EndpointPalette.GetBadgeStyle(identity.Kind, identity.DisplayIndex);
+        EndpointBadgeBorder.Background = badgeStyle.Background;
+        EndpointBadgeBorder.BorderBrush = badgeStyle.Border;
+        EndpointBadgeTextBlock.Foreground = badgeStyle.Foreground;
+        _initialUrl = string.IsNullOrWhiteSpace(initialUrl) ? "https://www.google.com/" : initialUrl;
         UpdateBrowserControls();
         SetStatus("Ready.");
-        RuntimeLog.Info($"[{Identity.Alias}] Browser pane configured. PaneId={Identity.PaneId:D}; DisplayIndex={Identity.DisplayIndex}; URL='{initialUrl}'");
+        RuntimeLog.Info($"[{Identity.Alias}] Browser pane configured. PaneId={Identity.PaneId:D}; DisplayIndex={Identity.DisplayIndex}; InitialURL='{_initialUrl}'");
     }
 
     internal void SetEndpointIdVisibility(bool visible)
@@ -66,6 +71,9 @@ public partial class BrowserTile : UserControl
 
     internal void FitBrowserToPane()
         => BrowserHost.ResizeDockedWindow();
+
+    internal void FinalizeBrowserRepaint()
+        => BrowserHost.FinalizeResizeRepaint();
 
     internal void SetMaximizedState(bool maximized)
     {
@@ -149,8 +157,7 @@ public partial class BrowserTile : UserControl
 
         try
         {
-            var targetUrl = NormalizeUrl(UrlTextBox.Text);
-            UrlTextBox.Text = targetUrl;
+            var targetUrl = _initialUrl;
             SetStatus("Waiting for serialized Firefox launch / HWND discovery...");
             var window = await _firefox.LaunchAndFindNewWindowAsync(targetUrl, _launchCts.Token, Identity.Alias);
             if (window is null)
@@ -178,62 +185,6 @@ public partial class BrowserTile : UserControl
         {
             SetUiBusy(false);
         }
-    }
-
-    private async void UrlTextBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        var targetUrl = NormalizeUrl(UrlTextBox.Text);
-        UrlTextBox.Text = targetUrl;
-
-        // The URL TextBox owns WPF keyboard focus when Enter is pressed.
-        // Explicitly release it before transferring focus into the foreign Firefox HWND.
-        Keyboard.ClearFocus();
-
-        if (!BrowserHost.HasDockedWindow)
-        {
-            RuntimeLog.Info($"[{Identity.Alias}] URL Enter pressed without docked Firefox; launching target URL='{targetUrl}'.");
-            await LaunchAndDockAsync();
-            return;
-        }
-
-        try
-        {
-            ActivateRequested?.Invoke(this);
-            SetStatus($"Navigating to {targetUrl}...");
-            var sent = await BrowserHost.NavigateByKeyboardAsync(targetUrl);
-            SetStatus(sent ? $"Navigation requested: {targetUrl}" : "Unable to navigate because the docked Firefox window is unavailable.");
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error($"[{Identity.Alias}] URL navigation failed. URL='{targetUrl}'", ex);
-            SetStatus($"Navigation failed: {ex.Message}");
-        }
-    }
-
-    private static string NormalizeUrl(string? input)
-    {
-        var value = (input ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "https://www.google.com/";
-        }
-
-        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute) &&
-            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
-        {
-            return absolute.ToString();
-        }
-
-        var candidate = $"https://{value}";
-        return Uri.TryCreate(candidate, UriKind.Absolute, out var normalized)
-            ? normalized.ToString()
-            : value;
     }
 
     private void DockExistingButton_Click(object sender, RoutedEventArgs e)
@@ -324,6 +275,17 @@ public partial class BrowserTile : UserControl
 
         ActivateRequested?.Invoke(this);
         ResizeRequested?.Invoke(this, direction, e.HorizontalChange, e.VerticalChange);
+    }
+
+    private void PaneBorderResize_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (!BrowserHost.HasDockedWindow)
+        {
+            return;
+        }
+
+        BrowserHost.FinalizeResizeRepaint();
+        RuntimeLog.Debug($"[{Identity.Alias}] Browser resize completed; final HWND redraw requested. Size={ActualWidth:0}x{ActualHeight:0}");
     }
 
     private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)

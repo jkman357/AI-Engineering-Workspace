@@ -449,10 +449,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Auto Fit is a deterministic reflow mode, not a preservation of old Canvas geometry.
+        // Rebuild the order from pane identity so deleted/moved panes cannot leave visual holes.
         var panes = GetAllPanes()
-            .OrderBy(p => GetPanePosition(p).Y)
-            .ThenBy(p => GetPanePosition(p).X)
-            .ThenBy(GetAlias, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p is FilePane ? 0 : 1)
+            .ThenBy(p => p switch
+            {
+                FilePane file => file.Identity.DisplayIndex,
+                BrowserTile browser => browser.Identity.DisplayIndex,
+                _ => int.MaxValue
+            })
             .ToList();
 
         if (panes.Count == 0)
@@ -519,7 +525,23 @@ public partial class MainWindow : Window
             }
         }
 
-        RuntimeLog.Info($"Auto Fit applied. Panes={panes.Count}; Grid={columns}x{rows}; Surface={surfaceWidth:0}x{surfaceHeight:0}");
+        // Auto Fit must always start from the top-left of the freshly reflowed surface.
+        // Old Free Layout scroll offsets otherwise make a correctly positioned grid appear to have holes.
+        WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+        WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+
+        Dispatcher.InvokeAsync(() =>
+        {
+            WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+            WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+            foreach (var browser in _browserPanes.Where(item => item.Visibility == Visibility.Visible))
+            {
+                browser.FitBrowserToPane();
+                browser.FinalizeBrowserRepaint();
+            }
+        }, DispatcherPriority.Render);
+
+        RuntimeLog.Info($"Auto Fit applied from origin. Panes={panes.Count}; Grid={columns}x{rows}; Surface={surfaceWidth:0}x{surfaceHeight:0}; ScrollReset=0,0");
     }
 
     private void ToggleBrowserPaneMaximize(BrowserTile tile)

@@ -1,15 +1,15 @@
-feat: integrate native Windows Shell actions and reliable pane resize in v0.0.6rc06
+fix: reflow Auto Fit, harden Firefox repaint, and simplify browser panes in v0.0.6rc07
 
 - continue the active v0.0.6 RC line without freezing or advancing the version
-- make all eight Free Layout resize edge/corner controls explicitly hit-testable with transparent WPF surfaces
-- widen resize hit bands and keep resize chrome above File/Browser content for more reliable pointer capture
-- retain live pane geometry updates and docked Firefox HWND fitting during manual resize
-- replace the custom File-pane right-click ContextMenu with native Windows Shell IContextMenu hosting
-- forward Shell menu messages needed by dynamic context-menu extensions
-- allow installed Shell integrations such as 7-Zip, comparison tools, TortoiseGit, Open With, Send To, and Properties to participate when registered by Windows
-- keep direct Workspace keyboard file operations as fallback actions (Ctrl+C/Ctrl+X/Ctrl+V/F2/Delete)
-- add read-only Git working-tree status badges for clean, modified, added/untracked, and deleted items using local git.exe probes
-- avoid hard-coding Git push/commit behavior; TortoiseGit remains available through its registered Shell integration
-- document Windows Shell extensions as an external trust boundary because third-party handlers can execute in the Workspace process context
-- retain credential/security wording, diagnostics policy, Firefox trust boundary, standard-user design, API-free architecture, and MIT License
-- update README, SECURITY.md, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc06
+- rebuild Auto Fit pane placement deterministically from File/Browser endpoint identity instead of stale Canvas coordinates
+- reset Workspace horizontal/vertical scroll offsets to the top-left whenever Auto Fit is applied
+- add a post-render Auto Fit pass that refits docked Firefox HWNDs after WPF layout settles
+- remove the duplicate Workspace Browser URL TextBox and return normal address entry/navigation to Firefox itself
+- retain Google as the default Launch + Dock startup URL without exposing a second address field in the Workspace UI
+- keep Browser pane controls focused on Workspace responsibilities: endpoint identity, launch/dock, focus recovery, detach, maximize/restore, move/resize, and close
+- add Win32 RedrawWindow invalidation during Firefox HWND resize and one final redraw after pane resize/reflow to reduce stale pixels and resize ghosting
+- add distinct color-coded routing endpoint badges for B1-B8 and F1-F4 when Show IDs is enabled
+- keep endpoint color as a visual aid only; routing identity remains the explicit alias plus stable internal PaneId GUID
+- retain native Windows Shell context menus, 7-Zip/compare/TortoiseGit Shell-extension participation, Git working-tree badges, File Manager sorting, and Free Layout behavior from rc06
+- retain command-line build/run scripts, runtime diagnostics, standard-user design, API-free architecture, credential/security wording, and the MIT License unchanged
+- update README, CHANGELOG, rc07 release notes, application metadata, and command-line version labels to v0.0.6rc07

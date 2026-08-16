@@ -13,7 +13,7 @@ set "LOG=logs\runtime\launch_%STAMP%.log"
 
 > "%LOG%" echo ============================================================
 >>"%LOG%" echo AI Engineering Workspace launcher
->>"%LOG%" echo Version       : v0.0.6rc06
+>>"%LOG%" echo Version       : v0.0.6rc07
 >>"%LOG%" echo Start         : %DATE% %TIME%
 >>"%LOG%" echo Configuration : %CONFIG%
 >>"%LOG%" echo Project       : src\AIEngineeringWorkspace.App\AIEngineeringWorkspace.App.csproj

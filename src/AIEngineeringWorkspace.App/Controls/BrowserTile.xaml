@@ -72,15 +72,7 @@
                                    Text="B1" />
                     </Border>
 
-                    <TextBox x:Name="UrlTextBox"
-                             Grid.Row="0"
-                             Grid.Column="3"
-                             Margin="0,0,6,5"
-                             MinWidth="160"
-                             VerticalContentAlignment="Center"
-                             KeyDown="UrlTextBox_KeyDown"
-                             ToolTip="Enter a URL and press Enter to navigate this Browser pane"
-                             Text="https://www.google.com/" />
+                    <Border Grid.Row="0" Grid.Column="3" />
                     <Button x:Name="MaximizePaneButton"
                             Grid.Row="0"
                             Grid.Column="4"
@@ -170,15 +162,15 @@
                     </Setter>
                 </Style>
             </Grid.Resources>
-            <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="14" Margin="0,18,0,18" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag left edge to resize" />
-            <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="14" Margin="0,18,0,18" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag right edge to resize" />
-            <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="14" Margin="18,0,18,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top edge to resize" />
-            <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="14" Margin="18,0,18,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom edge to resize" />
+            <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="14" Margin="0,18,0,18" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag left edge to resize" />
+            <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="14" Margin="0,18,0,18" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag right edge to resize" />
+            <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="14" Margin="18,0,18,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag top edge to resize" />
+            <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="14" Margin="18,0,18,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag bottom edge to resize" />
 
-            <Thumb Tag="TopLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-left corner to resize" />
-            <Thumb Tag="TopRight" HorizontalAlignment="Right" VerticalAlignment="Top" Width="20" Height="20" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-right corner to resize" />
-            <Thumb Tag="BottomLeft" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="20" Height="20" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-left corner to resize" />
-            <Thumb Tag="BottomRight" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="20" Height="20" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-right corner to resize" />
+            <Thumb Tag="TopLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag top-left corner to resize" />
+            <Thumb Tag="TopRight" HorizontalAlignment="Right" VerticalAlignment="Top" Width="20" Height="20" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag top-right corner to resize" />
+            <Thumb Tag="BottomLeft" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="20" Height="20" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag bottom-left corner to resize" />
+            <Thumb Tag="BottomRight" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="20" Height="20" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" DragCompleted="PaneBorderResize_DragCompleted" ToolTip="Drag bottom-right corner to resize" />
         </Grid>
     </Grid>
 </UserControl>

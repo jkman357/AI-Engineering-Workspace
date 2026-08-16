@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.6rc07
+
+- make Auto Fit rebuild pane placement deterministically from endpoint identity and reset Workspace scroll offsets to the top-left;
+- add a post-render Browser fit/redraw pass after Auto Fit to prevent apparent blank-origin layout artifacts;
+- remove the duplicate Workspace Browser URL TextBox and return normal browsing/navigation to Firefox itself;
+- add final Win32 redraw handling after Browser resize/reflow to reduce stale HWND resize pixels and ghosting;
+- add color-coded B1-B8 / F1-F4 endpoint badges while preserving PaneId/alias as the actual routing identity;
+- retain native Windows Shell context menus, Git status badges, Free Layout resize, security hardening, and MIT licensing from rc06;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc06
 
 - made eight-direction Free Layout resize hit areas explicitly hit-testable and wider;
