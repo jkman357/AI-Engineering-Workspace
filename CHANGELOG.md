@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.6rc06
+
+- made eight-direction Free Layout resize hit areas explicitly hit-testable and wider;
+- raised pane resize chrome above File/Browser content for reliable border dragging;
+- replaced the custom File-pane right-click menu with native Windows Shell `IContextMenu` hosting;
+- forward dynamic Shell menu messages for registered extensions such as 7-Zip, compare tools, and TortoiseGit;
+- added lightweight Git working-tree badges using local `git.exe` status information;
+- retained keyboard file operations as fallback actions;
+- documented third-party Shell extensions as an external trust boundary;
+- continued the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc05
 
 - fix `GetCurrentThreadId` P/Invoke to use `kernel32.dll` instead of `user32.dll`

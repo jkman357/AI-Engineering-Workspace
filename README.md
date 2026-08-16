@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc05**
+Current version: **v0.0.6rc06**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -18,7 +18,9 @@ Unified Dynamic Workspace
 │  └─ per-window lifecycle ownership
 ├─ File Pane (F1 ... F4)
 │  ├─ Windows Shell file/folder icons
-│  ├─ Explorer-like file actions
+│  ├─ native Windows Shell context menu
+│  ├─ 7-Zip / compare / TortoiseGit Shell-extension participation
+│  ├─ Git working-tree status badges
 │  ├─ sortable Name / Type / Size / Modified columns
 │  └─ Windows FileDrop drag source
 ├─ Adaptive Layout
@@ -30,36 +32,49 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
-## v0.0.6rc05 — Free Layout Border Resize + Focus P/Invoke Fix
+## v0.0.6rc06 — Native Shell + Git Status + Resize Reliability
 
-This RC continues the active **v0.0.6** line and fixes issues found during real-machine testing of `v0.0.6rc04`. The release is not frozen.
+This RC continues the active **v0.0.6** line. It does not freeze `v0.0.6`.
 
-### True Free Layout border resize
+### Reliable Free Layout resize hit frame
 
-Free Layout pane resizing is no longer limited to the small lower-right `◢` grip.
+Real-machine testing showed that rc05 pane movement worked, but the transparent resize controls were not reliably hit-testable. rc06 changes the eight edge/corner `Thumb` controls to use explicit transparent hit surfaces, raises the resize chrome above pane content, and widens the hit bands.
 
-Each File/Browser pane now supports direct resize from:
+Free Layout supports direct drag resize from:
 
-- left / right edges;
-- top / bottom edges;
-- top-left / top-right corners;
-- bottom-left / bottom-right corners.
+- left / right;
+- top / bottom;
+- all four corners.
 
-Standard WPF resize cursors are used for each direction. Browser/File content is inset slightly so a WPF-owned resize band remains available around the pane; this is important for Browser panes because the embedded Firefox HWND is a foreign native window and can otherwise consume pointer input over its client region.
+The pointer changes to the corresponding Windows resize cursor. File content and the docked Firefox HWND continue to fit the pane while it is resized.
 
-Resizing from the left or top moves the pane origin while keeping the opposite edge stable. Minimum pane size and non-negative top/left workspace coordinates are enforced. A docked Firefox HWND continues to follow the Browser pane size.
+### Native Windows Shell context menu
 
-### Win32 focus bridge correction
+The File pane no longer substitutes a custom WPF right-click menu for normal Windows Shell behavior. Right-clicking a selected item asks Windows Shell for its native `IContextMenu` and forwards menu messages required by Shell extensions.
 
-`v0.0.6rc04` introduced richer Firefox focus diagnostics, but real-machine testing exposed an incorrect P/Invoke declaration:
+This allows commands registered on the workstation to participate without hard-coding each tool, for example:
+
+- Windows Open / Open with / Send to / Properties and other registered verbs;
+- 7-Zip extraction/compression commands when the installed 7-Zip Shell extension exposes them;
+- compare-tool commands when that application has registered a Shell context-menu extension;
+- TortoiseGit commands such as Commit / Diff / Log / Pull / Push when TortoiseGit exposes them for the selected Git item.
+
+The exact menu remains controlled by Windows and the locally installed Shell extensions. AI Engineering Workspace does not implement or emulate those third-party commands.
+
+Keyboard file actions (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `F2`, `Delete`) remain available as Workspace fallback operations.
+
+### Git working-tree indicators
+
+When a File pane is inside a Git working tree and `git.exe` is available, rc06 adds a small status badge over the file/folder icon:
 
 ```text
-GetCurrentThreadId
+✓  tracked / clean
+!  modified
++  added or untracked
+−  deleted
 ```
 
-The function is now imported from `kernel32.dll` instead of `user32.dll`. This removes the observed `Unable to find an entry point named 'GetCurrentThreadId' in DLL 'user32.dll'` Launch + Dock failure.
-
-The Browser input-focus bridge and compact icon toolbar from rc04 are retained.
+The indicator is derived from local `git status --porcelain` / `git ls-files` output with a short command timeout. TortoiseGit remains responsible for its own Shell context-menu integration; the status badge is a lightweight Workspace fallback and does not modify the repository.
 
 ## v0.0.6rc04 — Browser Input Focus + Toolbar UX
 
@@ -167,20 +182,11 @@ Click a column header to sort; click it again to reverse the direction:
 
 Folders remain grouped before files, while the selected column controls ordering inside the groups.
 
-### Explorer-like actions
+### Native Windows Shell actions
 
-Right-click provides:
+Right-click uses the native Windows Shell context menu for the selected file/folder (or the current folder when no row is selected). Therefore the available commands depend on Windows and locally registered Shell extensions such as 7-Zip, comparison tools, and TortoiseGit.
 
-- Open
-- Copy
-- Cut / Move
-- Paste
-- Rename
-- Delete to Recycle Bin
-- New Folder
-- Refresh
-
-Keyboard shortcuts:
+Keyboard shortcuts provided directly by the Workspace remain:
 
 ```text
 Ctrl+C  Copy
@@ -303,21 +309,18 @@ run.cmd
 
 Launcher/application diagnostics are written under `logs\runtime\` when logging is enabled.
 
-## v0.0.6rc05 test focus / resize
+## v0.0.6rc06 test focus / resize / Shell integration
 
 1. Run `build.cmd` and then `run.cmd`.
-2. Launch + Dock Firefox in `B1`; the previous `GetCurrentThreadId` entry-point error must not occur.
-3. Switch to Free Layout, or start a border resize while Auto Fit is active and verify the Workspace switches to Free Layout.
-4. Resize a File pane from left, right, top, bottom, and all four corners.
-5. Repeat the same eight-direction resize on a Browser pane with Firefox docked.
-6. Verify the cursor changes to horizontal, vertical, or diagonal resize cursors at the appropriate border/corner.
-7. Verify the docked Firefox client region follows the Browser pane continuously and remains usable after resize.
-8. Verify left/top resize changes the pane origin without allowing negative workspace coordinates or violating minimum pane size.
-9. Open ChatGPT (or another page with a normal text input), click the page input, and type without pressing the Workspace Focus button first.
-10. Enter `www.yahoo.com.tw` in the Workspace URL field and press Enter; only that Browser endpoint should navigate.
-11. Exercise `▶`, `⇲`, `⌖`, and `↗`; verify each tooltip matches its action.
-12. Re-test Browser maximize/restore, Detach, Auto Fit, File Manager sorting/actions, and Workspace shutdown lifecycle.
-13. If Browser input focus still fails, attach `logs\runtime\AIEngineeringWorkspace_*.log`; rc05 retains the focus/thread/HWND diagnostics added in rc04.
+2. Switch to Free Layout and resize File panes from all four edges and all four corners. The cursor must change and the pane must resize continuously.
+3. Repeat resize with a docked Firefox Browser pane; the Firefox HWND must continue to fill the Browser client area.
+4. Right-click a `.zip` file. Verify the native Windows menu appears and, when registered on the machine, 7-Zip commands are present.
+5. Right-click a file supported by the installed comparison tool and verify its registered comparison command appears when the tool exposes a Shell extension.
+6. Navigate a File pane into a Git working tree. Verify Git badges appear on tracked/modified/untracked items.
+7. Right-click a Git file/folder and verify TortoiseGit commands appear when the installed TortoiseGit Shell extension exposes them.
+8. Exercise a safe Shell command such as Properties/Open and verify the File pane refreshes afterward.
+9. Re-test Browser Launch + Dock, page keyboard input, URL Enter navigation, Focus recovery, Detach, Auto Fit, pane maximize/restore, and Workspace shutdown lifecycle.
+10. If a Shell extension fails, attach the runtime log and note the selected file type and whether the same command appears in Windows Explorer.
 
 ## Current limits / non-goals
 

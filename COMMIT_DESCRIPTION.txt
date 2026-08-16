@@ -1,15 +1,15 @@
-fix: add true Free Layout border resize and correct Win32 thread P/Invoke in v0.0.6rc05
+feat: integrate native Windows Shell actions and reliable pane resize in v0.0.6rc06
 
-- continue the active v0.0.6 RC line without freezing or advancing the minor version
-- correct GetCurrentThreadId P/Invoke from user32.dll to kernel32.dll
-- replace the lower-right-only resize grip with eight-direction pane border/corner resize chrome
-- support left, right, top, bottom, top-left, top-right, bottom-left, and bottom-right resize operations
-- add standard horizontal, vertical, and diagonal resize cursors with edge/corner tooltips
-- inset Browser/File pane content to preserve a WPF-owned resize hit band outside foreign Firefox HWND content
-- update pane position correctly when resizing from the left or top while preserving the opposite edge
-- enforce minimum pane size and prevent negative top/left workspace coordinates
-- keep docked Firefox HWND content fitted to Browser pane geometry during live resize
-- remove the old visible lower-right resize grip
-- retain rc04 browser input-focus bridge, focus diagnostics, compact toolbar icons/tooltips, adaptive layout, File Manager UX, security hardening, diagnostics policy, and lifecycle behavior
-- retain the MIT License unchanged
-- update README, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc05
+- continue the active v0.0.6 RC line without freezing or advancing the version
+- make all eight Free Layout resize edge/corner controls explicitly hit-testable with transparent WPF surfaces
+- widen resize hit bands and keep resize chrome above File/Browser content for more reliable pointer capture
+- retain live pane geometry updates and docked Firefox HWND fitting during manual resize
+- replace the custom File-pane right-click ContextMenu with native Windows Shell IContextMenu hosting
+- forward Shell menu messages needed by dynamic context-menu extensions
+- allow installed Shell integrations such as 7-Zip, comparison tools, TortoiseGit, Open With, Send To, and Properties to participate when registered by Windows
+- keep direct Workspace keyboard file operations as fallback actions (Ctrl+C/Ctrl+X/Ctrl+V/F2/Delete)
+- add read-only Git working-tree status badges for clean, modified, added/untracked, and deleted items using local git.exe probes
+- avoid hard-coding Git push/commit behavior; TortoiseGit remains available through its registered Shell integration
+- document Windows Shell extensions as an external trust boundary because third-party handlers can execute in the Workspace process context
+- retain credential/security wording, diagnostics policy, Firefox trust boundary, standard-user design, API-free architecture, and MIT License
+- update README, SECURITY.md, CHANGELOG, release notes, application metadata, and command-line version labels to v0.0.6rc06

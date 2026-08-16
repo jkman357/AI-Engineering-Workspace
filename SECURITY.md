@@ -107,3 +107,13 @@ Normal Browser-pane lifecycle operations target the exact HWND/PID that the Work
 ## Reporting
 
 Do not place passwords, authentication tokens, private credentials, confidential local paths, sensitive screenshots, or production data into public GitHub issues.
+
+## Windows Shell extension trust boundary
+
+File-pane right-click menus in `v0.0.6rc06` are obtained from Windows Shell through `IContextMenu`. Registered Shell extensions may therefore contribute menu commands and may execute third-party code in the Workspace process context when Windows activates those extensions.
+
+Examples can include 7-Zip, TortoiseGit, comparison tools, security products, cloud-storage clients, and other Explorer integrations installed on the workstation. Their behavior, privilege model, data handling, updates, and security properties are outside the control of AI Engineering Workspace.
+
+The Workspace does not silently invoke a Shell command: execution follows an explicit user menu selection. Organizations evaluating the tool should include installed Shell extensions in their endpoint trust assessment.
+
+Git status badges are read-only probes using local `git.exe` commands (`rev-parse`, `status --porcelain`, and `ls-files`). They do not commit, push, pull, or modify repository content.

@@ -102,23 +102,9 @@
                       MouseDoubleClick="FileListView_MouseDoubleClick"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
                       PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
+                      PreviewMouseRightButtonUp="FileListView_PreviewMouseRightButtonUp"
                       PreviewMouseMove="FileListView_PreviewMouseMove"
                       PreviewKeyDown="FileListView_PreviewKeyDown">
-                <ListView.ContextMenu>
-                    <ContextMenu Opened="FileContextMenu_Opened">
-                        <MenuItem x:Name="OpenMenuItem" Header="Open" Click="OpenMenuItem_Click" />
-                        <Separator />
-                        <MenuItem x:Name="CopyMenuItem" Header="Copy" Click="CopyMenuItem_Click" InputGestureText="Ctrl+C" />
-                        <MenuItem x:Name="CutMenuItem" Header="Cut / Move" Click="CutMenuItem_Click" InputGestureText="Ctrl+X" />
-                        <MenuItem x:Name="PasteMenuItem" Header="Paste" Click="PasteMenuItem_Click" InputGestureText="Ctrl+V" />
-                        <Separator />
-                        <MenuItem x:Name="RenameMenuItem" Header="Rename" Click="RenameMenuItem_Click" />
-                        <MenuItem x:Name="DeleteMenuItem" Header="Delete to Recycle Bin" Click="DeleteMenuItem_Click" InputGestureText="Del" />
-                        <Separator />
-                        <MenuItem Header="New Folder" Click="NewFolderMenuItem_Click" />
-                        <MenuItem Header="Refresh" Click="RefreshMenuItem_Click" />
-                    </ContextMenu>
-                </ListView.ContextMenu>
                 <ListView.View>
                     <GridView AllowsColumnReorder="True">
                         <GridViewColumn Width="190">
@@ -128,7 +114,10 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
-                                        <Image Width="16" Height="16" Margin="0,0,6,0" Source="{Binding Icon}" SnapsToDevicePixels="True" />
+                                        <Grid Width="18" Height="18" Margin="0,0,4,0">
+                                            <Image Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{Binding Icon}" SnapsToDevicePixels="True" />
+                                            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Bottom" MinWidth="10" Height="11" Padding="1,0" Background="#F8F8F8" FontSize="9" FontWeight="Bold" LineHeight="9" TextAlignment="Center" Text="{Binding GitGlyph}" ToolTip="{Binding GitTooltip}" />
+                                        </Grid>
                                         <TextBlock VerticalAlignment="Center" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                 </DataTemplate>
@@ -170,28 +159,28 @@
         </Grid>
         </Border>
 
-        <Grid x:Name="ResizeChrome">
+        <Grid x:Name="ResizeChrome" Panel.ZIndex="999">
             <Grid.Resources>
                 <Style TargetType="{x:Type Thumb}">
                     <Setter Property="Focusable" Value="False" />
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="{x:Type Thumb}">
-                                <Border />
+                                <Border Background="Transparent" />
                             </ControlTemplate>
                         </Setter.Value>
                     </Setter>
                 </Style>
             </Grid.Resources>
-            <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="10" Margin="0,12,0,12" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag left edge to resize" />
-            <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="10" Margin="0,12,0,12" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag right edge to resize" />
-            <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="10" Margin="12,0,12,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top edge to resize" />
-            <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="10" Margin="12,0,12,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom edge to resize" />
+            <Thumb Tag="Left" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="14" Margin="0,18,0,18" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag left edge to resize" />
+            <Thumb Tag="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="14" Margin="0,18,0,18" Cursor="SizeWE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag right edge to resize" />
+            <Thumb Tag="Top" HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="14" Margin="18,0,18,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top edge to resize" />
+            <Thumb Tag="Bottom" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="14" Margin="18,0,18,0" Cursor="SizeNS" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom edge to resize" />
 
-            <Thumb Tag="TopLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Width="14" Height="14" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-left corner to resize" />
-            <Thumb Tag="TopRight" HorizontalAlignment="Right" VerticalAlignment="Top" Width="14" Height="14" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-right corner to resize" />
-            <Thumb Tag="BottomLeft" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="14" Height="14" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-left corner to resize" />
-            <Thumb Tag="BottomRight" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="14" Height="14" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-right corner to resize" />
+            <Thumb Tag="TopLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-left corner to resize" />
+            <Thumb Tag="TopRight" HorizontalAlignment="Right" VerticalAlignment="Top" Width="20" Height="20" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag top-right corner to resize" />
+            <Thumb Tag="BottomLeft" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="20" Height="20" Cursor="SizeNESW" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-left corner to resize" />
+            <Thumb Tag="BottomRight" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="20" Height="20" Cursor="SizeNWSE" DragDelta="PaneBorderResize_DragDelta" ToolTip="Drag bottom-right corner to resize" />
         </Grid>
     </Grid>
 </UserControl>

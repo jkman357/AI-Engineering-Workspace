@@ -71,12 +71,14 @@ public partial class FilePane : UserControl
             }
 
             var entries = new List<FileEntry>();
+            var gitSnapshot = GitStatusService.TryReadFolder(path);
 
             foreach (var directory in Directory.EnumerateDirectories(path))
             {
                 try
                 {
                     var info = new DirectoryInfo(directory);
+                    var git = GitStatusService.GetDecoration(gitSnapshot, info.FullName, true);
                     entries.Add(new FileEntry
                     {
                         Name = info.Name,
@@ -87,7 +89,9 @@ public partial class FilePane : UserControl
                         SizeBytes = -1,
                         ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
                         ModifiedTime = info.LastWriteTime,
-                        Icon = ShellIconService.GetSmallIcon(info.FullName)
+                        Icon = ShellIconService.GetSmallIcon(info.FullName),
+                        GitGlyph = git.Glyph,
+                        GitTooltip = git.Tooltip
                     });
                 }
                 catch (Exception ex)
@@ -101,6 +105,7 @@ public partial class FilePane : UserControl
                 try
                 {
                     var info = new FileInfo(file);
+                    var git = GitStatusService.GetDecoration(gitSnapshot, info.FullName, false);
                     entries.Add(new FileEntry
                     {
                         Name = info.Name,
@@ -111,7 +116,9 @@ public partial class FilePane : UserControl
                         SizeBytes = info.Length,
                         ModifiedText = info.LastWriteTime.ToString("yyyy/MM/dd HH:mm"),
                         ModifiedTime = info.LastWriteTime,
-                        Icon = ShellIconService.GetSmallIcon(info.FullName)
+                        Icon = ShellIconService.GetSmallIcon(info.FullName),
+                        GitGlyph = git.Glyph,
+                        GitTooltip = git.Tooltip
                     });
                 }
                 catch (Exception ex)
@@ -126,8 +133,9 @@ public partial class FilePane : UserControl
             _entries.AddRange(entries);
             ApplySort(false);
 
-            SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s)");
-            RuntimeLog.Info($"[{Identity.Alias}] Folder loaded. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}");
+            var gitSuffix = gitSnapshot.IsRepository ? $" | Git: {Path.GetFileName(gitSnapshot.RepositoryRoot)}" : string.Empty;
+            SetStatus($"{entries.Count(item => item.IsDirectory)} folder(s), {entries.Count(item => !item.IsDirectory)} file(s){gitSuffix}");
+            RuntimeLog.Info($"[{Identity.Alias}] Folder loaded. PaneId={Identity.PaneId:D}; Path='{path}'; Items={entries.Count}; GitRepository={gitSnapshot.IsRepository}; GitRoot='{gitSnapshot.RepositoryRoot}'");
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -299,6 +307,31 @@ public partial class FilePane : UserControl
         }
     }
 
+    private void FileListView_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        if (owner is null)
+        {
+            return;
+        }
+
+        var targetPath = FileListView.SelectedItem is FileEntry entry ? entry.FullPath : _currentPath;
+        var screenPoint = FileListView.PointToScreen(e.GetPosition(FileListView));
+        RuntimeLog.Info($"[{Identity.Alias}] Native Shell context menu requested. Path='{targetPath}'");
+
+        if (!ShellContextMenuService.Show(owner, targetPath, screenPoint, out var error))
+        {
+            SetStatus($"Windows Shell menu unavailable: {error}");
+        }
+        else
+        {
+            SetStatus($"Windows Shell menu: {Path.GetFileName(targetPath.TrimEnd(Path.DirectorySeparatorChar))}");
+            Dispatcher.BeginInvoke(() => NavigateTo(_currentPath), System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        e.Handled = true;
+    }
+
     private void FileListView_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed || FileListView.SelectedItem is not FileEntry entry || entry.IsDirectory)
@@ -353,39 +386,6 @@ public partial class FilePane : UserControl
             e.Handled = true;
         }
     }
-
-    private void FileContextMenu_Opened(object sender, RoutedEventArgs e)
-    {
-        var hasSelection = FileListView.SelectedItem is FileEntry;
-        OpenMenuItem.IsEnabled = hasSelection;
-        CopyMenuItem.IsEnabled = hasSelection;
-        CutMenuItem.IsEnabled = hasSelection;
-        RenameMenuItem.IsEnabled = hasSelection;
-        DeleteMenuItem.IsEnabled = hasSelection;
-        PasteMenuItem.IsEnabled = CanPasteFromClipboard();
-    }
-
-    private void OpenMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (FileListView.SelectedItem is FileEntry entry)
-        {
-            OpenEntry(entry);
-        }
-    }
-
-    private void CopyMenuItem_Click(object sender, RoutedEventArgs e) => CopySelected(false);
-
-    private void CutMenuItem_Click(object sender, RoutedEventArgs e) => CopySelected(true);
-
-    private void PasteMenuItem_Click(object sender, RoutedEventArgs e) => PasteClipboardItems();
-
-    private void RenameMenuItem_Click(object sender, RoutedEventArgs e) => RenameSelected();
-
-    private void DeleteMenuItem_Click(object sender, RoutedEventArgs e) => DeleteSelected();
-
-    private void NewFolderMenuItem_Click(object sender, RoutedEventArgs e) => CreateNewFolder();
-
-    private void RefreshMenuItem_Click(object sender, RoutedEventArgs e) => NavigateTo(_currentPath);
 
     private void CopySelected(bool move)
     {
