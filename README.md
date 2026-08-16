@@ -1,12 +1,14 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc21**
+Current version: **v0.0.6rc22**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
 Copyright (c) 2026 Ray Yang. Released under the MIT License. See `LICENSE`.
 
-AI Engineering Workspace is a .NET 10 / WPF Windows desktop engineering workspace that docks real Firefox windows together with project-oriented file panes. The active v0.0.6 line remains RC; v0.0.6 is not frozen by this package.
+AI Engineering Workspace is a .NET 10 / WPF Windows desktop engineering workspace that combines real Firefox Browser panes with project-oriented File Manager panes. The active v0.0.6 line remains RC; v0.0.6 is not frozen by this package.
+
+For version history, see `CHANGELOG.md`. For per-RC engineering rationale and validation gates, see `docs/releases/`.
 
 ## Security / privacy boundary — credentials are not application data
 
@@ -21,11 +23,13 @@ Runtime diagnostics are local engineering logs and may contain paths, URLs, HWND
 ```text
 Unified Dynamic Workspace
 ├─ Browser Pane (B1 ... B8)
-│  ├─ rc21 launch-only Firefox control (HWND observation only)
-│  ├─ no parent / owner / style / geometry / visibility / focus mutation
-│  ├─ Firefox-native keyboard / TSF / IME ownership
+│  ├─ real Firefox HWND docking
+│  ├─ Firefox-native address bar / web-content / IME ownership
+│  ├─ no Firefox child-HWND focus guessing
+│  ├─ read-only input-language / IME diagnostics
+│  ├─ explicit transactional root-HWND recovery only where required
 │  ├─ Workspace maximize / restore
-│  ├─ Launch + Track / Track Existing / diagnostic Focus suppression / Stop Tracking
+│  ├─ Launch + Dock / Dock Existing / Focus / Detach
 │  └─ per-window lifecycle ownership
 ├─ File Pane (F1 ... F4)
 │  ├─ Windows Shell file/folder icons
@@ -43,112 +47,21 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
-## v0.0.6rc21 — Firefox Launch-Only Control
+## Browser input boundary
 
-Real-machine rc20 testing ruled out `SetParent`, owner reassignment, style mutation, input-queue bridging, root focus forcing, and HKL synchronization as sufficient explanations for the Zhuyin failure. rc20 still moved/resized and showed/hid Firefox, so rc21 removes those last Workspace window-management variables too.
+The Workspace must not act as an IME proxy. Firefox remains responsible for address-bar, page-content, text-edit, input-language, TSF, and IME state.
 
-rc21 is a strict launch/discovery control:
+The Browser input policy is:
 
-- the Workspace launches Firefox and discovers the new native top-level HWND;
-- the HWND is tracked only for diagnostics and Workspace-owned shutdown cleanup;
-- no `SetParent`, `GWL_HWNDPARENT`, `GWL_STYLE`, or `GWL_EXSTYLE` mutation;
-- no `SetWindowPos`, `SetWindowPlacement`, or Workspace-driven `ShowWindow`;
-- no `AttachThreadInput`, `SetFocus`, `SetForegroundWindow`, `SendInput`, HKL synchronization, or synthetic IME composition;
-- Workspace move/resize/scroll/minimize/layout changes do not reposition, hide, show, or focus Firefox;
-- Firefox appears at its own native Windows position/size/Z-order. Browser panes are placeholders/launch endpoints only in this RC.
+- do not enumerate or guess Firefox compositor/content child HWNDs for normal input;
+- do not synthesize `WM_IME_*` composition messages;
+- do not call `ActivateKeyboardLayout` for Firefox;
+- do not post `WM_INPUTLANGCHANGEREQUEST` into Firefox as corrective synchronization;
+- keep HKL and GUI-thread observations diagnostic-only;
+- do not maintain a persistent `AttachThreadInput` bridge;
+- when explicit root-HWND recovery is required, use a one-shot `AttachThreadInput -> SetFocus(root) -> immediate detach` transaction and let Firefox resume internal focus ownership.
 
-The first gate remains deliberately small: launch **B1 only**, type `abc123`, switch to Zhuyin, and compose/commit `你好`. If this still fails, Workspace HWND mutation/window management is effectively ruled out and the next investigation boundary is the Firefox launch/new-window/session/TSF lifecycle itself.
-
-See `docs/releases/v0.0.6rc21.md`.
-
-## v0.0.6rc20 — Zero-Mutation Firefox Baseline
-
-Real-machine rc19 testing showed that removing `SetParent` was **not sufficient** to restore Zhuyin/Chinese composition: English/number input worked, but Zhuyin still failed. rc20 therefore removes the two remaining native-window identity mutations from the pseudo-dock experiment.
-
-In rc20 Firefox stays visually and structurally native:
-
-- no `SetParent`;
-- no `GWL_HWNDPARENT` owner reassignment;
-- no `GWL_STYLE` or `GWL_EXSTYLE` mutation;
-- no `AttachThreadInput`, root `SetFocus`, HKL synchronization, or synthetic IME composition;
-- the Firefox title bar and frame intentionally remain visible;
-- the Workspace only mirrors the Browser pane's screen rectangle with `SetWindowPos(... SWP_NOACTIVATE ...)` and may hide/show the window with Workspace visibility.
-
-This was an A/B control RC, not a UX target. Real-machine rc20 testing still failed Zhuyin and also showed that independent top-level Firefox windows could be obscured by the Workspace when new windows opened. rc21 therefore removes the remaining `SetWindowPos` and visibility management to create a true launch-only control.
-
-See `docs/releases/v0.0.6rc20.md`.
-
-## v0.0.6rc19 — Native Top-Level Firefox Pseudo-Dock
-
-Real-machine rc18 testing established a cleaner boundary: ordinary English/number input worked after Workspace focus interference was removed, while Zhuyin/Chinese IME composition still failed. rc19 therefore changes the Browser hosting boundary instead of adding another `SetFocus`, `AttachThreadInput`, or IME-message patch.
-
-rc19 keeps Firefox as a real native top-level HWND:
-
-- `BrowserDockHost` provides only a WPF-owned native geometry anchor;
-- Firefox is **not** passed to `SetParent` and is explicitly kept out of `WS_CHILD` mode;
-- visible Firefox caption/frame chrome is removed while pseudo-docked, but the window stays top-level;
-- the Workspace top-level HWND is assigned only as the Firefox window owner, not as its parent;
-- `GetWindowRect` on the anchor plus `SetWindowPos(... SWP_NOACTIVATE ...)` mirrors each Browser pane's screen rectangle;
-- Workspace move, viewport resize/scroll, pane layout, Show IDs, maximize/restore, hide/show, and minimize/restore resynchronize the pseudo-docked windows;
-- normal keyboard, address-bar, web-content, TSF, and IME behavior remains Firefox/Windows-owned;
-- rc19 does not use `AttachThreadInput`, root `SetFocus`, HKL synchronization, synthetic IME composition, or Firefox child-HWND focus guessing;
-- the `⌖ Focus` action is now a native top-level `SetForegroundWindow` recovery request only.
-
-The first acceptance gate is intentionally small: B1 must pass English/number **and Zhuyin** before expanding to B1-B4 and then B1-B8. See `docs/releases/v0.0.6rc19.md` for the full prototype gate and known validation areas such as Free Layout clipping, overlapping panes, multi-monitor DPI, and minimize/restore.
-
-## v0.0.6rc18 — Firefox Native Input Pass-Through
-
-rc18 is retained as the final `SetParent`-based pass-through experiment. It removed persistent input bridges and normal-click focus forcing; real-machine testing showed English/number input could work while Zhuyin still failed, motivating the rc19 top-level pseudo-dock prototype.
-
-## v0.0.6rc15 — Browser Maximize / Restore Focus Recovery
-
-Real-machine rc14 validation showed normal multi-Browser input working across B1-B8, including English/number input and Zhuyin composition, while the Browser Workspace maximize mode (`□`) could leave both ASCII and IME input unable to reach the docked Firefox window.
-
-rc15 keeps the rc14 input-language/IME diagnostics unchanged and treats maximize/restore as a separate WPF-owned focus transition:
-
-- after maximize geometry/visibility changes complete, schedule a deferred Firefox root-HWND focus recovery at `DispatcherPriority.ContextIdle`;
-- after explicit restore from the Browser maximize button, restore layout first and then perform the same deferred root focus recovery;
-- clear WPF keyboard focus from the maximize/restore button before handing focus to Firefox;
-- refit and repaint the hosted Firefox HWND immediately before the deferred focus handoff;
-- retain `FirefoxInputCoordinator` as the single transactional `AttachThreadInput` / `SetFocus` authority;
-- do not synthesize IME composition messages or force input-language state.
-
-The manual acceptance gate covers normal, maximized, and restored Browser input for both English/number and Zhuyin without requiring the `⌖` Focus recovery button.
-
-## v0.0.6rc14 — Firefox IME / Input-Language Diagnostics
-
-This RC continues the active **v0.0.6** line after real-machine rc13 testing established a sharper input boundary: docked Firefox can accept ordinary English/number key input, while switching to a Zhuyin/IME path can leave composition unavailable.
-
-rc14 is intentionally an **evidence-gathering RC**, not an IME emulator. It keeps the rc13 transactional root-HWND focus handoff and adds read-only diagnostics around the Windows input-language boundary:
-
-- records the Workspace-thread and Firefox-thread `GetKeyboardLayout` (HKL) values before/after explicit Firefox focus handoff;
-- samples the docked Firefox GUI thread with `GetGUIThreadInfo` from the existing one-second health loop and logs only observable state transitions (`hwndActive`, `hwndFocus`, `hwndCaret`, foreground HWND and HKL values);
-- records `WM_INPUTLANGCHANGEREQUEST`, `WM_INPUTLANGCHANGE`, `WM_IME_SETCONTEXT`, `WM_IME_STARTCOMPOSITION`, `WM_IME_COMPOSITION`, and `WM_IME_ENDCOMPOSITION` when they reach the WPF top-level HWND or the WPF-owned Browser host HWND;
-- does **not** synthesize IME composition messages, call `ActivateKeyboardLayout`, or force a keyboard layout into Firefox in rc14.
-
-The validation goal is to distinguish two materially different failures after switching English/number input to Zhuyin: (1) the Firefox thread HKL never changes, or (2) the Firefox thread HKL changes but the IME composition path still does not activate. That evidence determines the next fix without expanding the Workspace into an IME proxy.
-
-## v0.0.6rc13 — Transactional Firefox focus handoff
-
-rc12 proved that docked Firefox can accept keyboard input, but multi-Browser testing exposed a focus-ownership failure: one Browser pane could type while another visually focused Firefox pane could not.
-
-rc13 removes the dock-lifetime `AttachThreadInput` ownership model. A central `FirefoxInputCoordinator` performs only a one-shot transaction when root-HWND recovery is required:
-
-```text
-WPF UI thread
-   ↓
-temporary AttachThreadInput
-   ↓
-SetFocus(Firefox root HWND)
-   ↓
-finally: DetachThreadInput
-   ↓
-Firefox owns address-bar / page / ChatGPT prompt focus
-```
-
-There is no persistent per-pane input bridge state. rc19 removes `AttachThreadInput` from the active Browser architecture entirely because Firefox is no longer reparented: normal interaction stays native top-level, and `TabIntoCore` / `Focus` request normal top-level activation instead of cross-thread root `SetFocus`. Firefox child-HWND guessing remains prohibited.
-
-The rc12 New Workspace behavior is retained: a clean Workspace gets an explicit Create New / Cancel confirmation; a dirty Workspace retains Save / Discard / Cancel semantics before reset. The default reset remains F1/F2 + B1-B4, Auto Fit, Google Browser startup, reset feedback, and no Browser session persistence.
+v0.0.6rc22 intentionally returns to the rc15-era input architecture after the rc16-rc21 investigation line demonstrated that active input-language/focus intervention could confound Firefox IME state. Detailed history belongs in `CHANGELOG.md` and `docs/releases/v0.0.6rc22.md`, not in this README.
 
 ## Build / test / run
 
@@ -172,7 +85,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc21.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc22.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

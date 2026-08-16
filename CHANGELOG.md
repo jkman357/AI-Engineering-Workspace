@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.0.6rc22
+
+- continue the active v0.0.6 RC line without freezing or advancing the minor version;
+- return Browser docking/input behavior to the rc15-era baseline after the rc16-rc21 investigation line;
+- retain `SetParent` Firefox docking and the rc13/rc15 centralized one-shot root-HWND recovery transaction rather than the rc16 native-click coordinator, rc17 persistent bridge, or rc18-rc21 pass-through/pseudo-dock/launch-only experiments;
+- remove the rc16+ corrective input-language design from the active code path: do not post `WM_INPUTLANGCHANGEREQUEST` into Firefox, do not call `ActivateKeyboardLayout`, and do not synthesize IME composition;
+- keep Workspace/Firefox HKL, foreground, `GetGUIThreadInfo`, and IME/input-language message instrumentation read-only;
+- do not add `WM_PARENTNOTIFY` / `WM_MOUSEACTIVATE` driven automatic root-focus handoff on every native Firefox click;
+- retain no persistent `AttachThreadInput` bridge and keep temporary attach / root `SetFocus` / immediate detach limited to explicit root-HWND recovery paths from the rc15 baseline;
+- retain rc15 maximize/restore deferred recovery, New Workspace confirmation, `.aew` persistence, Auto Fit/Free Layout, endpoint badges, File Manager, native Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, security/privacy wording, standard-user design, API-free architecture, and MIT License;
+- preserve rc16-rc21 release notes as investigation history even though their experimental Browser input architectures are not carried into rc22;
+- split README and CHANGELOG responsibilities: README contains current product/architecture/use information only, CHANGELOG contains version history, and `docs/releases/` contains per-RC engineering rationale and validation gates;
+- require a fresh Firefox process for the first rc22 IME validation so any process-level state left by earlier experimental RCs does not invalidate the result;
+- stamp metadata as `v0.0.6rc22` / `0.0.6-rc22` / FileVersion `0.0.6.22`.
+
 ## v0.0.6rc21
 
 - continue the active v0.0.6 RC line without freezing the release;

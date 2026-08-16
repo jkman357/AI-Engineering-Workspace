@@ -9,10 +9,8 @@ internal static class NativeMethods
     internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
     internal delegate bool EnumChildProc(IntPtr hWnd, IntPtr lParam);
 
-    internal const int GWL_HWNDPARENT = -8;
     internal const int GWL_STYLE = -16;
     internal const int GWL_EXSTYLE = -20;
-    internal const uint GA_ROOT = 2;
     internal const long WS_CHILD = 0x40000000L;
     internal const long WS_POPUP = 0x80000000L;
     internal const long WS_CAPTION = 0x00C00000L;
@@ -31,24 +29,15 @@ internal static class NativeMethods
     internal const uint SWP_FRAMECHANGED = 0x0020;
     internal const uint SWP_SHOWWINDOW = 0x0040;
 
-    internal static readonly IntPtr HWND_TOP = IntPtr.Zero;
-
-    internal const int SW_HIDE = 0;
     internal const int SW_SHOWNORMAL = 1;
     internal const int SW_RESTORE = 9;
     internal const uint WM_SETREDRAW = 0x000B;
     internal const uint WM_CLOSE = 0x0010;
-    internal const uint WM_MOUSEACTIVATE = 0x0021;
     internal const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
     internal const uint WM_INPUTLANGCHANGE = 0x0051;
     internal const uint WM_IME_STARTCOMPOSITION = 0x010D;
     internal const uint WM_IME_ENDCOMPOSITION = 0x010E;
     internal const uint WM_IME_COMPOSITION = 0x010F;
-    internal const uint WM_PARENTNOTIFY = 0x0210;
-    internal const uint WM_LBUTTONDOWN = 0x0201;
-    internal const uint WM_RBUTTONDOWN = 0x0204;
-    internal const uint WM_MBUTTONDOWN = 0x0207;
-    internal const uint WM_XBUTTONDOWN = 0x020B;
     internal const uint WM_IME_SETCONTEXT = 0x0281;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
     internal const uint RDW_INVALIDATE = 0x0001;
@@ -102,6 +91,7 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)] private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)] private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)] private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
@@ -110,7 +100,6 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, [MarshalAs(UnmanagedType.Bool)] bool bRepaint);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
     [DllImport("user32.dll")] internal static extern IntPtr GetParent(IntPtr hWnd);
-    [DllImport("user32.dll")] internal static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, [MarshalAs(UnmanagedType.Bool)] bool bErase);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool UpdateWindow(IntPtr hWnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
@@ -118,11 +107,13 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool SetWindowPlacement(IntPtr hWnd, [In] ref WINDOWPLACEMENT lpwndpl);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetFocus(IntPtr hWnd);
+    [DllImport("user32.dll")] internal static extern IntPtr GetFocus();
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
     [DllImport("user32.dll", SetLastError = true)] internal static extern uint SendInput(uint inputCount, [In] INPUT[] inputs, int inputSize);
     [DllImport("kernel32.dll")] internal static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool fAttach);
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)] internal static extern IntPtr CreateWindowEx(uint dwExStyle, string lpClassName, string? lpWindowName, uint dwStyle, int X, int Y, int nWidth, int nHeight, IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool DestroyWindow(IntPtr hWnd);
 

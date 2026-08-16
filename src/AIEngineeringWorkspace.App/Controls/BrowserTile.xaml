@@ -16,7 +16,7 @@
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Thumb x:Name="MoveThumb" Focusable="False" KeyboardNavigation.IsTabStop="False" Grid.Row="0" Grid.Column="0" Width="24" Height="23" Margin="0,0,6,5" Cursor="SizeAll" DragStarted="MoveThumb_DragStarted" DragDelta="MoveThumb_DragDelta" DragCompleted="MoveThumb_DragCompleted" ToolTip="Drag to move this pane">
+                            <Thumb x:Name="MoveThumb" Grid.Row="0" Grid.Column="0" Width="24" Height="23" Margin="0,0,6,5" Cursor="SizeAll" DragStarted="MoveThumb_DragStarted" DragDelta="MoveThumb_DragDelta" DragCompleted="MoveThumb_DragCompleted" ToolTip="Drag to move this pane">
                                 <Thumb.Template><ControlTemplate TargetType="Thumb"><Border BorderBrush="#A8A8A8" BorderThickness="1" Background="#E7E7E7" CornerRadius="2"><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="#555555" Text="⋮⋮"/></Border></ControlTemplate></Thumb.Template>
                             </Thumb>
                             <TextBlock x:Name="TileTitleTextBlock" Visibility="Collapsed" Grid.Row="0" Grid.Column="1" Margin="0,0,7,5" VerticalAlignment="Center" FontWeight="SemiBold" Text="Browser"/>
@@ -24,13 +24,13 @@
                                 <TextBlock x:Name="EndpointBadgeTextBlock" FontWeight="Bold" Text="B1"/>
                             </Border>
                             <Border Grid.Row="0" Grid.Column="3"/>
-                            <Button x:Name="MaximizePaneButton" Focusable="False" KeyboardNavigation.IsTabStop="False" Grid.Row="0" Grid.Column="4" Width="24" Height="23" Margin="0,0,4,5" Padding="0" FontWeight="Bold" Click="MaximizePaneButton_Click" ToolTip="Maximize this Browser pane inside the Workspace">□</Button>
-                            <Button x:Name="ClosePaneButton" Focusable="False" KeyboardNavigation.IsTabStop="False" Grid.Row="0" Grid.Column="5" Width="24" Height="23" Margin="0,0,0,5" Padding="0" FontWeight="Bold" Click="ClosePaneButton_Click" ToolTip="Close this browser pane">×</Button>
+                            <Button x:Name="MaximizePaneButton" Grid.Row="0" Grid.Column="4" Width="24" Height="23" Margin="0,0,4,5" Padding="0" FontWeight="Bold" Click="MaximizePaneButton_Click" ToolTip="Maximize this Browser pane inside the Workspace">□</Button>
+                            <Button x:Name="ClosePaneButton" Grid.Row="0" Grid.Column="5" Width="24" Height="23" Margin="0,0,0,5" Padding="0" FontWeight="Bold" Click="ClosePaneButton_Click" ToolTip="Close this browser pane">×</Button>
                             <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6">
-                                <Button x:Name="LaunchButton" Focusable="False" KeyboardNavigation.IsTabStop="False" Width="32" Height="28" Margin="0,0,6,0" Padding="0" FontSize="16" Click="LaunchButton_Click" ToolTip="Launch a new Firefox window and track its HWND only (rc21 control; no docking mutation)">▶</Button>
-                                <Button x:Name="DockExistingButton" Focusable="False" KeyboardNavigation.IsTabStop="False" Width="32" Height="28" Margin="0,0,6,0" Padding="0" FontSize="17" Click="DockExistingButton_Click" ToolTip="Track the single existing Firefox HWND only (rc21 control; no docking mutation)">⇲</Button>
-                                <Button x:Name="FocusButton" Focusable="False" KeyboardNavigation.IsTabStop="False" Width="32" Height="28" Margin="0,0,6,0" Padding="0" FontSize="17" Click="FocusButton_Click" ToolTip="rc21 control: focus mutation disabled; activate Firefox directly">⌖</Button>
-                                <Button x:Name="DetachButton" Focusable="False" KeyboardNavigation.IsTabStop="False" Width="32" Height="28" Padding="0" FontSize="17" Click="DetachButton_Click" ToolTip="Stop tracking this Firefox window; the window itself is not modified">↗</Button>
+                                <Button x:Name="LaunchButton" Width="32" Height="28" Margin="0,0,6,0" Padding="0" FontSize="16" Click="LaunchButton_Click" ToolTip="Launch a new Firefox window and dock it into this Browser pane">▶</Button>
+                                <Button x:Name="DockExistingButton" Width="32" Height="28" Margin="0,0,6,0" Padding="0" FontSize="17" Click="DockExistingButton_Click" ToolTip="Dock the single existing Firefox window into this Browser pane">⇲</Button>
+                                <Button x:Name="FocusButton" Width="32" Height="28" Margin="0,0,6,0" Padding="0" FontSize="17" Click="FocusButton_Click" ToolTip="Recover keyboard focus to the docked Firefox window">⌖</Button>
+                                <Button x:Name="DetachButton" Width="32" Height="28" Padding="0" FontSize="17" Click="DetachButton_Click" ToolTip="Detach and restore this Firefox window">↗</Button>
                             </WrapPanel>
                         </Grid>
                     </StackPanel>

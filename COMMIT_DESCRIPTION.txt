@@ -1,22 +1,20 @@
-test: reduce Firefox integration to a launch-only control in v0.0.6rc21
+fix: roll Firefox input handling back to the pre-rc16 baseline in v0.0.6rc22
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* use rc20 real-machine evidence that Zhuyin/Chinese input still fails after removing SetParent, owner reassignment, style mutation, persistent input bridging, root focus forcing, and HKL synchronization
-* use rc20 evidence that independent zero-owner top-level Firefox windows can be obscured by the Workspace when later Browser windows are launched, confirming pseudo-dock z-order as a separate UX limitation
-* turn rc21 into a strict Firefox launch-only control that launches/discovers a native top-level Firefox HWND and then stops modifying the live Firefox window
-* remove Firefox SetWindowPos geometry synchronization and stop translating Browser pane position/size, Workspace movement, viewport scrolling, Auto Fit, Free Layout, Show IDs, maximize/restore, or resize events into Firefox geometry changes
-* remove Workspace-driven Firefox visibility synchronization and do not hide/show Firefox when Browser panes or the Workspace are hidden, minimized, restored, or rearranged
-* remove detach-time Firefox SetWindowPlacement restoration because rc21 never changes Firefox placement
-* suppress the Focus toolbar recovery path in rc21 so Workspace does not call SetForegroundWindow or root SetFocus against Firefox during the control experiment
-* disable Workspace-driven SendInput Browser navigation in rc21 so Firefox keyboard/TSF/IME ownership remains completely native
-* retain no SetParent, no GWL_HWNDPARENT owner reassignment, no GWL_STYLE/GWL_EXSTYLE mutation, no AttachThreadInput, no HKL synchronization, no ActivateKeyboardLayout, no synthetic IME composition, and no Firefox child-HWND focus guessing
-* keep BrowserDockRegistry and per-pane launch ownership only for HWND identity, health diagnostics, duplicate assignment prevention, and graceful cleanup of Workspace-launched Firefox windows
-* retain read-only foreground, GetGUIThreadInfo, HKL, input-language, and IME diagnostics with NativeInputMode=LaunchOnlyControl
-* leave Firefox at its own native Windows position, size, frame, z-order, foreground/focus, TSF document context, and IME lifecycle
-* make Browser pane resize/visibility APIs intentional no-ops for Firefox in rc21 while preserving the existing Workspace layout and File Manager behavior
-* define the primary real-machine gate as B1 only: type abc123, switch to Zhuyin and compose/commit 你好, then return to English and type xyz789 without using Focus
-* if B1 Chinese still fails, treat Workspace-side Firefox window mutation/window management as ruled out and move the next investigation boundary to Firefox new-window/shared-process/shared-thread/TSF lifecycle
-* stamp application/build/run/test metadata as v0.0.6rc21 / 0.0.6-rc21 / FileVersion 0.0.6.21 from Directory.Build.props
-* retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
+* use the rc14-rc21 real-machine investigation history to return the active Browser input architecture to the rc15-era baseline before corrective Firefox input-language synchronization was introduced
+* restore the rc15 SetParent Browser docking path and centralized one-shot Firefox root-HWND recovery model instead of carrying forward the rc16 native-click coordinator, rc17 persistent bridge, or rc18-rc21 pass-through/pseudo-dock/launch-only experiments
+* keep FirefoxInputCoordinator as the only cross-thread root-focus recovery authority using temporary AttachThreadInput, SetFocus on the Firefox root HWND, and immediate detach in finally
+* retain no dock-lifetime or per-Firefox-thread persistent AttachThreadInput bridge
+* keep normal Browser input free of Firefox compositor/content child-HWND enumeration, ranking, or focus guessing
+* remove the rc16+ corrective input-language design from the active path and never post WM_INPUTLANGCHANGEREQUEST into Firefox
+* keep Workspace/Firefox HKL, foreground HWND, GetGUIThreadInfo active/focus/caret HWND, and IME/input-language messages as read-only diagnostics only
+* do not call ActivateKeyboardLayout for Firefox and do not synthesize WM_IME_COMPOSITION or other IME composition data
+* do not install WM_PARENTNOTIFY / WM_MOUSEACTIVATE driven automatic root-focus handoff on every native Firefox click
+* retain rc15 deferred maximize/restore focus recovery after WPF layout/render completes without changing Firefox input-language state
+* preserve rc16-rc21 release notes as investigation history while making clear that those experimental Browser input/hosting architectures are not active in rc22
+* require a fresh Firefox process for the first rc22 Zhuyin validation to avoid confusing persistent Firefox process state from earlier experimental RCs with the rc22 code path
+* add regression checks that input-language handling remains diagnostic-only, no corrective PostMessage path exists, no native-click focus coordinator exists, no persistent input bridge exists, and the rc22 fresh-process validation gate is documented
+* split README and CHANGELOG responsibilities: README contains current product/architecture/build/security information only, CHANGELOG contains version history, and docs/releases contains detailed per-RC engineering notes
+* stamp application/build/run/test metadata as v0.0.6rc22 / 0.0.6-rc22 / FileVersion 0.0.6.22 from Directory.Build.props
+* retain New Workspace confirmation, .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, 64x64 endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
 * preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc21 release notes, regression tests, commit description, tooltips, status wording, and UI/build metadata for v0.0.6rc21

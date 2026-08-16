@@ -5,140 +5,137 @@ using AIEngineeringWorkspace.Interop;
 namespace AIEngineeringWorkspace.Browser;
 
 /// <summary>
-/// Diagnostic-only Firefox observer for rc21 launch-only control.
-///
-/// rc21 must not alter Firefox focus, parent/owner/style, geometry, visibility, input queues,
-/// keyboard layout, or IME state. This class only records foreground/focus/HKL evidence for the
-/// native top-level Firefox HWND returned by the launch/discovery service.
+/// Coordinates the one-shot Win32 input-queue handoff required to focus a reparented
+/// Firefox root HWND. The coordinator deliberately owns no dock-lifetime bridge state.
+/// rc14 also captures read-only HKL / GUI-thread evidence for IME diagnosis.
 /// </summary>
 internal static class FirefoxInputCoordinator
 {
     private static readonly object Sync = new();
     private static readonly Dictionary<IntPtr, InputSnapshot> LastSnapshots = new();
-    private static IntPtr _activeBrowserHwnd;
 
-    internal static IntPtr ActiveBrowserHwnd
+    internal static void FocusRoot(IntPtr browserHwnd, uint workspaceThreadId, string reason)
     {
-        get
+        if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd))
         {
-            lock (Sync)
-            {
-                if (_activeBrowserHwnd != IntPtr.Zero && !NativeMethods.IsWindow(_activeBrowserHwnd))
-                    _activeBrowserHwnd = IntPtr.Zero;
-                return _activeBrowserHwnd;
-            }
-        }
-    }
-
-    internal static void ObserveDock(IntPtr browserHwnd, uint workspaceThreadId, string reason)
-    {
-        if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd)) return;
-        workspaceThreadId = workspaceThreadId == 0 ? NativeMethods.GetCurrentThreadId() : workspaceThreadId;
-        var browserThreadId = NativeMethods.GetWindowThreadProcessId(browserHwnd, out var browserPid);
-        RuntimeLog.Info(
-            $"Firefox launch-only HWND observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; " +
-            $"BrowserThread={browserThreadId}; PID={browserPid}; NativeInputMode=LaunchOnlyControl; SetParentUsed=False; OwnerMutation=False; StyleMutation=False; " +
-            $"GeometryMutation=False; VisibilityMutation=False; AttachThreadInputUsed=False; SetFocusUsed=False; SetForegroundWindowUsed=False; InputLanguageSync=False; Reason='{reason}'");
-    }
-
-    internal static void MarkActiveRoot(IntPtr browserHwnd, string reason)
-    {
-        if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd)) return;
-        lock (Sync)
-        {
-            var changed = _activeBrowserHwnd != browserHwnd;
-            _activeBrowserHwnd = browserHwnd;
-            if (changed)
-                RuntimeLog.Info($"Active native Firefox top-level observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; NativeInputMode=LaunchOnlyControl; Reason='{reason}'");
-        }
-    }
-
-    internal static void ClearActiveRoot(string reason)
-    {
-        lock (Sync)
-        {
-            if (_activeBrowserHwnd == IntPtr.Zero) return;
-            var previous = _activeBrowserHwnd;
-            _activeBrowserHwnd = IntPtr.Zero;
-            RuntimeLog.Info($"Active native Firefox top-level cleared. PreviousBrowserHWND=0x{previous.ToInt64():X}; Reason='{reason}'");
-        }
-    }
-
-    internal static void SuppressFocusMutation(IntPtr browserHwnd, string reason)
-    {
-        RuntimeLog.Info(
-            $"Firefox focus mutation suppressed by rc21 launch-only control. BrowserHWND=0x{browserHwnd.ToInt64():X}; " +
-            $"SetForegroundWindowUsed=False; SetFocusUsed=False; AttachThreadInputUsed=False; Reason='{reason}'");
-    }
-
-    internal static void FocusActiveRoot(uint workspaceThreadId, string reason) =>
-        SuppressFocusMutation(ActiveBrowserHwnd, reason);
-
-    internal static void FocusRoot(IntPtr browserHwnd, uint workspaceThreadId, string reason) =>
-        SuppressFocusMutation(browserHwnd, reason);
-
-    internal static void ActivateTopLevel(IntPtr browserHwnd, uint workspaceThreadId, string reason) =>
-        SuppressFocusMutation(browserHwnd, reason);
-
-    internal static void ObserveActiveInputLanguage(uint workspaceThreadId, string reason)
-    {
-        var active = ActiveBrowserHwnd;
-        if (active == IntPtr.Zero)
-        {
-            RuntimeLog.Debug($"Active Firefox input-language observation skipped because no launch-only Browser is recorded. Reason='{reason}'");
+            RuntimeLog.Warn($"Firefox focus handoff skipped because BrowserHWND=0x{browserHwnd.ToInt64():X} is invalid. Reason='{reason}'");
             return;
         }
 
         lock (Sync)
         {
-            if (!NativeMethods.IsWindow(active)) return;
             workspaceThreadId = workspaceThreadId == 0 ? NativeMethods.GetCurrentThreadId() : workspaceThreadId;
-            var browserThreadId = NativeMethods.GetWindowThreadProcessId(active, out var browserPid);
-            if (browserThreadId == 0) return;
-            var workspaceHkl = NativeMethods.GetKeyboardLayout(workspaceThreadId);
-            var browserHkl = NativeMethods.GetKeyboardLayout(browserThreadId);
+            var browserThreadId = NativeMethods.GetWindowThreadProcessId(browserHwnd, out var browserPid);
+            if (browserThreadId == 0)
+            {
+                RuntimeLog.Warn($"Firefox focus handoff could not resolve BrowserThread. BrowserHWND=0x{browserHwnd.ToInt64():X}; WorkspaceThread={workspaceThreadId}; Reason='{reason}'");
+                return;
+            }
+
+            var before = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
+            var bridgeRequired = workspaceThreadId != browserThreadId;
+            var bridgeAttached = false;
+            var bridgeDetached = !bridgeRequired;
+            IntPtr previousFocus = IntPtr.Zero;
+            IntPtr currentFocus = IntPtr.Zero;
+            IntPtr foreground = IntPtr.Zero;
+            var focusError = 0;
+
+            try
+            {
+                if (bridgeRequired)
+                {
+                    Marshal.SetLastPInvokeError(0);
+                    bridgeAttached = NativeMethods.AttachThreadInput(workspaceThreadId, browserThreadId, true);
+                    if (!bridgeAttached)
+                    {
+                        RuntimeLog.Warn($"Temporary Firefox input bridge attach failed. WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}; Reason='{reason}'");
+                    }
+                }
+
+                Marshal.SetLastPInvokeError(0);
+                previousFocus = NativeMethods.SetFocus(browserHwnd);
+                focusError = Marshal.GetLastPInvokeError();
+                currentFocus = NativeMethods.GetFocus();
+                foreground = NativeMethods.GetForegroundWindow();
+            }
+            finally
+            {
+                if (bridgeAttached)
+                {
+                    Marshal.SetLastPInvokeError(0);
+                    bridgeDetached = NativeMethods.AttachThreadInput(workspaceThreadId, browserThreadId, false);
+                    if (!bridgeDetached)
+                    {
+                        RuntimeLog.Warn($"Temporary Firefox input bridge detach failed. WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}; Reason='{reason}'");
+                    }
+                }
+            }
+
+            var after = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
+            LastSnapshots[browserHwnd] = after;
+
             RuntimeLog.Info(
-                $"Firefox input-language state observed without synchronization. BrowserHWND=0x{active.ToInt64():X}; BrowserThread={browserThreadId}; PID={browserPid}; " +
-                $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(workspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(browserHkl)}; " +
-                $"InputLanguageMismatch={workspaceHkl != browserHkl}; InputLanguageSyncPosted=False; NativeInputMode=LaunchOnlyControl; Reason='{reason}'");
+                $"Firefox transactional root focus handoff completed. BrowserHWND=0x{browserHwnd.ToInt64():X}; " +
+                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; PID={browserPid}; " +
+                $"TemporaryInputBridgeAttached={bridgeAttached}; TemporaryInputBridgeDetached={bridgeDetached}; " +
+                $"PreviousFocus=0x{previousFocus.ToInt64():X}; CurrentFocus=0x{currentFocus.ToInt64():X}; " +
+                $"Foreground=0x{foreground.ToInt64():X}; Win32={focusError}; " +
+                $"WorkspaceHKLBefore={InputLanguageDiagnostics.FormatHkl(before.WorkspaceHkl)}; BrowserHKLBefore={InputLanguageDiagnostics.FormatHkl(before.BrowserHkl)}; " +
+                $"WorkspaceHKLAfter={InputLanguageDiagnostics.FormatHkl(after.WorkspaceHkl)}; BrowserHKLAfter={InputLanguageDiagnostics.FormatHkl(after.BrowserHkl)}; " +
+                $"GuiActiveAfter=0x{after.GuiActive.ToInt64():X}; GuiFocusAfter=0x{after.GuiFocus.ToInt64():X}; GuiCaretAfter=0x{after.GuiCaret.ToInt64():X}; " +
+                $"InputLanguageMismatchAfter={after.WorkspaceHkl != after.BrowserHkl}; Reason='{reason}'");
         }
     }
 
+    /// <summary>
+    /// Called by the existing one-second Browser health loop. It logs only when observable
+    /// input state changes, so an English/number -> Zhuyin switch becomes visible without
+    /// flooding the runtime log every second.
+    /// </summary>
     internal static void ProbeState(IntPtr browserHwnd, uint workspaceThreadId, string reason)
     {
-        if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd)) return;
+        if (browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(browserHwnd))
+        {
+            return;
+        }
 
         lock (Sync)
         {
             workspaceThreadId = workspaceThreadId == 0 ? NativeMethods.GetCurrentThreadId() : workspaceThreadId;
             var browserThreadId = NativeMethods.GetWindowThreadProcessId(browserHwnd, out var browserPid);
-            if (browserThreadId == 0) return;
+            if (browserThreadId == 0)
+            {
+                return;
+            }
 
             var snapshot = CaptureSnapshot(browserHwnd, workspaceThreadId, browserThreadId, browserPid);
-            if (snapshot.Foreground == browserHwnd) _activeBrowserHwnd = browserHwnd;
-            if (LastSnapshots.TryGetValue(browserHwnd, out var previous) && previous == snapshot) return;
+            if (LastSnapshots.TryGetValue(browserHwnd, out var previous) && previous == snapshot)
+            {
+                return;
+            }
 
             LastSnapshots[browserHwnd] = snapshot;
             RuntimeLog.Info(
-                $"Firefox launch-only input-state transition observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; ActiveBrowserHWND=0x{_activeBrowserHwnd.ToInt64():X}; PID={browserPid}; " +
-                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; NativeInputMode=LaunchOnlyControl; SetParentUsed=False; OwnerMutation=False; StyleMutation=False; GeometryMutation=False; VisibilityMutation=False; " +
-                $"PersistentInputBridgeAttached=False; WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(snapshot.WorkspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(snapshot.BrowserHkl)}; " +
-                $"InputLanguageMismatch={snapshot.WorkspaceHkl != snapshot.BrowserHkl}; Foreground=0x{snapshot.Foreground.ToInt64():X}; GuiInfoOk={snapshot.GuiInfoOk}; " +
+                $"Firefox input-state transition observed. BrowserHWND=0x{browserHwnd.ToInt64():X}; PID={browserPid}; " +
+                $"WorkspaceThread={workspaceThreadId}; BrowserThread={browserThreadId}; " +
+                $"WorkspaceHKL={InputLanguageDiagnostics.FormatHkl(snapshot.WorkspaceHkl)}; BrowserHKL={InputLanguageDiagnostics.FormatHkl(snapshot.BrowserHkl)}; " +
+                $"InputLanguageMismatch={snapshot.WorkspaceHkl != snapshot.BrowserHkl}; " +
+                $"Foreground=0x{snapshot.Foreground.ToInt64():X}; GuiInfoOk={snapshot.GuiInfoOk}; " +
                 $"GuiActive=0x{snapshot.GuiActive.ToInt64():X}; GuiFocus=0x{snapshot.GuiFocus.ToInt64():X}; GuiCaret=0x{snapshot.GuiCaret.ToInt64():X}; Reason='{reason}'");
         }
     }
 
     internal static void Forget(IntPtr browserHwnd)
     {
-        if (browserHwnd == IntPtr.Zero) return;
+        if (browserHwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
         lock (Sync)
         {
             LastSnapshots.Remove(browserHwnd);
-            if (_activeBrowserHwnd == browserHwnd)
-            {
-                _activeBrowserHwnd = IntPtr.Zero;
-                RuntimeLog.Info($"Active native Firefox top-level forgotten during launch-only tracking teardown. BrowserHWND=0x{browserHwnd.ToInt64():X}");
-            }
         }
     }
 
@@ -146,16 +143,16 @@ internal static class FirefoxInputCoordinator
     {
         var gui = new NativeMethods.GUITHREADINFO { cbSize = (uint)Marshal.SizeOf<NativeMethods.GUITHREADINFO>() };
         Marshal.SetLastPInvokeError(0);
-        var guiInfoOk = browserThreadId != 0 && NativeMethods.GetGUIThreadInfo(browserThreadId, ref gui);
-        if (!guiInfoOk && browserThreadId != 0)
+        var guiInfoOk = NativeMethods.GetGUIThreadInfo(browserThreadId, ref gui);
+        if (!guiInfoOk)
         {
             var error = Marshal.GetLastWin32Error();
-            RuntimeLog.Debug($"GetGUIThreadInfo failed during Firefox launch-only input probe. BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={error}");
+            RuntimeLog.Debug($"GetGUIThreadInfo failed during Firefox input probe. BrowserThread={browserThreadId}; PID={browserPid}; BrowserHWND=0x{browserHwnd.ToInt64():X}; Win32={error}");
         }
 
         return new InputSnapshot(
             NativeMethods.GetKeyboardLayout(workspaceThreadId),
-            browserThreadId == 0 ? IntPtr.Zero : NativeMethods.GetKeyboardLayout(browserThreadId),
+            NativeMethods.GetKeyboardLayout(browserThreadId),
             NativeMethods.GetForegroundWindow(),
             guiInfoOk,
             gui.hwndActive,

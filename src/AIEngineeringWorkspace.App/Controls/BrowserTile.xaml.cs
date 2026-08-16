@@ -24,20 +24,16 @@ public partial class BrowserTile : UserControl
     public event Action<BrowserTile, PaneResizeDirection, double, double>? ResizeRequested;
     public event Action<BrowserTile>? ActivateRequested;
     public event Action<BrowserTile>? MaximizeRequested;
-    public event Action<BrowserTile>? NativeBrowserActivated;
 
     internal PaneIdentity Identity { get; private set; } = PaneIdentity.Create(PaneKind.Browser, 1);
     public string TileId => Identity.DisplayName;
     public string EndpointAlias => Identity.Alias;
     public bool HasDockedWindow => BrowserHost.HasDockedWindow;
-    internal IntPtr BrowserHwnd => BrowserHost.BrowserHwnd;
     public int WorkspaceLaunchedWindowCount => _workspaceLaunchedWindows.Count;
 
     public BrowserTile()
     {
         InitializeComponent();
-        BrowserHost.NativeBrowserActivated += (_, _) => NativeBrowserActivated?.Invoke(this);
-        IsVisibleChanged += (_, _) => BrowserHost.SetPseudoDockVisible(IsVisible);
         BrowserHost.DockedWindowLost += (_, _) =>
         {
             var lostHwnd = _dockedWindow?.Hwnd ?? IntPtr.Zero;
@@ -76,9 +72,15 @@ public partial class BrowserTile : UserControl
     }
 
     internal void FitBrowserToPane() => BrowserHost.ResizeDockedWindow();
-    internal void SetPseudoDockVisible(bool visible) => BrowserHost.SetPseudoDockVisible(visible);
     internal void FinalizeBrowserRepaint() => BrowserHost.FinalizeResizeRepaint();
-    internal void MarkBrowserActive(string reason) => BrowserHost.MarkActive(reason);
+
+    internal void RecoverBrowserFocusAfterLayout(string reason)
+    {
+        if (!BrowserHost.IsDocked) return;
+        Keyboard.ClearFocus();
+        BrowserHost.FocusBrowser(reason);
+        RuntimeLog.Info($"[{Identity.Alias}] Deferred Firefox focus recovery completed after Workspace layout transition. Reason='{reason}'; BrowserHWND=0x{BrowserHost.BrowserHwnd.ToInt64():X}");
+    }
 
     internal void SetMaximizedState(bool maximized)
     {
@@ -125,7 +127,7 @@ public partial class BrowserTile : UserControl
         BrowserHost.Detach();
         _dockedWindow = null;
         UpdateBrowserControls();
-        SetStatus(workspaceOwned ? "Stopped launch-only tracking. This Workspace-launched Firefox window will close when Workspace exits." : "Stopped launch-only tracking. Firefox window was not modified.");
+        SetStatus(workspaceOwned ? "Firefox detached and restored. This Workspace-launched window will close when Workspace exits." : "Firefox detached and original window style/placement restored.");
     }
 
     private async void LaunchButton_Click(object sender, RoutedEventArgs e) => await LaunchAndDockAsync();
@@ -174,7 +176,7 @@ public partial class BrowserTile : UserControl
         {
             Keyboard.ClearFocus();
             BrowserHost.FocusBrowser();
-            SetStatus(BrowserHost.IsDocked ? "Focus mutation is disabled by the rc21 launch-only control; activate Firefox directly." : "No Firefox window is tracked.");
+            SetStatus(BrowserHost.IsDocked ? "Firefox root keyboard focus recovery requested." : "Nothing is docked.");
         }
         catch (Exception ex) { RuntimeLog.Error($"[{Identity.Alias}] Focus request failed.", ex); SetStatus($"Focus failed: {ex.Message}"); }
     }
@@ -208,8 +210,7 @@ public partial class BrowserTile : UserControl
         BrowserHost.Dock(window.Hwnd);
         _dockedWindow = window;
         UpdateBrowserControls();
-        BrowserHost.SetPseudoDockVisible(IsVisible);
-        SetStatus($"Launch-only PID={window.ProcessId}, HWND={window.HwndHex}, Title='{window.Title}'");
+        SetStatus($"Docked PID={window.ProcessId}, HWND={window.HwndHex}, Title='{window.Title}'");
     }
 
     private void SetUiBusy(bool busy) { LaunchButton.IsEnabled = !busy; DockExistingButton.IsEnabled = !busy; ClosePaneButton.IsEnabled = !busy; MoveThumb.IsEnabled = !busy; }
