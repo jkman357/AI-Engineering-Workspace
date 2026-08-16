@@ -137,7 +137,7 @@
                                 Padding="0"
                                 FontSize="17"
                                 Click="FocusButton_Click"
-                                ToolTip="Recover keyboard focus to the docked Firefox web-content area">⌖</Button>
+                                ToolTip="Recover keyboard focus to the docked Firefox window">⌖</Button>
                         <Button x:Name="DetachButton"
                                 Width="32"
                                 Height="28"

@@ -18,6 +18,9 @@ public sealed class BrowserDockHost : HwndHost
     private bool _hasOriginalPlacement;
     private int _lastWidth = -1;
     private int _lastHeight = -1;
+    private uint _workspaceInputThreadId;
+    private uint _browserInputThreadId;
+    private bool _inputQueuesAttached;
 
     public event EventHandler? DockedWindowLost;
 
@@ -48,7 +51,8 @@ public sealed class BrowserDockHost : HwndHost
             NativeMethods.ThrowLastWin32Error("CreateWindowEx for browser host failed");
         }
 
-        RuntimeLog.Info($"Browser host HWND created: 0x{_hostHwnd.ToInt64():X}");
+        _workspaceInputThreadId = NativeMethods.GetCurrentThreadId();
+        RuntimeLog.Info($"Browser host HWND created: 0x{_hostHwnd.ToInt64():X}; WorkspaceInputThread={_workspaceInputThreadId}");
         return new HandleRef(this, _hostHwnd);
     }
 
@@ -82,17 +86,10 @@ public sealed class BrowserDockHost : HwndHost
             return false;
         }
 
-        FocusBrowserContent();
+        // Keep the handoff minimal. Firefox owns its internal focus model; the Workspace
+        // only focuses the reparented Firefox root HWND and never guesses compositor/content children.
+        FocusBrowser();
         return true;
-    }
-
-    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
-    {
-        base.OnGotKeyboardFocus(e);
-        if (IsDocked)
-        {
-            FocusBrowserContent();
-        }
     }
 
     public void Dock(IntPtr browserHwnd)
@@ -177,9 +174,10 @@ public sealed class BrowserDockHost : HwndHost
             RuntimeLog.Warn($"SetWindowPos(FRAMECHANGED) failed after dock. Win32={Marshal.GetLastWin32Error()}");
         }
 
+        AttachDockInputQueues();
         ResizeDockedWindow();
-        FocusBrowserContent();
-        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; initial content-focus recovery requested.");
+        FocusBrowser();
+        RuntimeLog.Info($"Dock successful. BrowserHWND=0x{browserHwnd.ToInt64():X}; persistent root-thread input bridge established={_inputQueuesAttached}.");
     }
 
     public void Detach()
@@ -398,133 +396,73 @@ public sealed class BrowserDockHost : HwndHost
     }
 
     public void FocusBrowser()
-        => FocusBrowserWindow(_browserHwnd, "browser-root");
-
-    public void FocusBrowserContent()
     {
         if (!CheckDockedWindowHealth())
         {
             return;
         }
 
-        var targetHwnd = FindPreferredContentHwnd();
-        FocusBrowserWindow(targetHwnd, targetHwnd == _browserHwnd ? "browser-root-fallback" : "browser-content");
+        AttachDockInputQueues();
+
+        Marshal.SetLastPInvokeError(0);
+        var previousFocus = NativeMethods.SetFocus(_browserHwnd);
+        var focusError = Marshal.GetLastPInvokeError();
+        var currentFocus = NativeMethods.GetFocus();
+        var foreground = NativeMethods.GetForegroundWindow();
+        RuntimeLog.Info($"Firefox root focus recovery requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; WorkspaceThread={_workspaceInputThreadId}; BrowserThread={_browserInputThreadId}; PersistentInputBridge={_inputQueuesAttached}; PreviousFocus=0x{previousFocus.ToInt64():X}; CurrentFocus=0x{currentFocus.ToInt64():X}; Foreground=0x{foreground.ToInt64():X}; Win32={focusError}");
     }
 
-    private void FocusBrowserWindow(IntPtr targetHwnd, string targetRole)
+    // Compatibility shim for callers from earlier RCs. Do not select an internal Firefox child HWND.
+    public void FocusBrowserContent() => FocusBrowser();
+
+    private void AttachDockInputQueues()
     {
-        if (!CheckDockedWindowHealth())
+        if (_browserHwnd == IntPtr.Zero || !NativeMethods.IsWindow(_browserHwnd) || _inputQueuesAttached)
         {
             return;
         }
 
-        if (targetHwnd == IntPtr.Zero || !NativeMethods.IsWindow(targetHwnd))
+        if (_workspaceInputThreadId == 0)
         {
-            targetHwnd = _browserHwnd;
-            targetRole = "browser-root-fallback";
+            _workspaceInputThreadId = NativeMethods.GetCurrentThreadId();
         }
 
-        var currentThread = NativeMethods.GetCurrentThreadId();
-        var browserThread = NativeMethods.GetWindowThreadProcessId(targetHwnd, out var browserPid);
-        if (browserThread == 0)
+        _browserInputThreadId = NativeMethods.GetWindowThreadProcessId(_browserHwnd, out var browserPid);
+        if (_browserInputThreadId == 0)
         {
-            RuntimeLog.Warn($"Cannot focus target HWND=0x{targetHwnd.ToInt64():X}; Role={targetRole}; GetWindowThreadProcessId returned 0.");
+            RuntimeLog.Warn($"Cannot establish Firefox input bridge. BrowserHWND=0x{_browserHwnd.ToInt64():X}; GetWindowThreadProcessId returned 0.");
             return;
         }
 
-        var attached = false;
-
-        try
+        if (_workspaceInputThreadId == _browserInputThreadId)
         {
-            if (currentThread != browserThread)
-            {
-                attached = NativeMethods.AttachThreadInput(currentThread, browserThread, true);
-                if (!attached)
-                {
-                    RuntimeLog.Warn($"AttachThreadInput failed. CurrentThread={currentThread}; BrowserThread={browserThread}; TargetHWND=0x{targetHwnd.ToInt64():X}; Role={targetRole}");
-                }
-            }
-
-            Marshal.SetLastPInvokeError(0);
-            var previousFocus = NativeMethods.SetFocus(targetHwnd);
-            var focusError = Marshal.GetLastPInvokeError();
-            var currentFocus = NativeMethods.GetFocus();
-            var foreground = NativeMethods.GetForegroundWindow();
-            RuntimeLog.Info($"Browser focus requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; TargetHWND=0x{targetHwnd.ToInt64():X}; Role={targetRole}; PID={browserPid}; CurrentThread={currentThread}; BrowserThread={browserThread}; ThreadInputAttached={attached}; PreviousFocus=0x{previousFocus.ToInt64():X}; CurrentFocus=0x{currentFocus.ToInt64():X}; Foreground=0x{foreground.ToInt64():X}; Win32={focusError}");
+            RuntimeLog.Debug($"Firefox input bridge not required because Workspace and Firefox share thread {_workspaceInputThreadId}.");
+            return;
         }
-        finally
+
+        _inputQueuesAttached = NativeMethods.AttachThreadInput(_workspaceInputThreadId, _browserInputThreadId, true);
+        if (_inputQueuesAttached)
         {
-            if (attached)
-            {
-                NativeMethods.AttachThreadInput(currentThread, browserThread, false);
-            }
+            RuntimeLog.Info($"Persistent Firefox input bridge attached. WorkspaceThread={_workspaceInputThreadId}; BrowserThread={_browserInputThreadId}; PID={browserPid}; BrowserHWND=0x{_browserHwnd.ToInt64():X}");
+        }
+        else
+        {
+            RuntimeLog.Warn($"AttachThreadInput persistent bridge failed. WorkspaceThread={_workspaceInputThreadId}; BrowserThread={_browserInputThreadId}; PID={browserPid}; BrowserHWND=0x{_browserHwnd.ToInt64():X}; Win32={Marshal.GetLastWin32Error()}");
         }
     }
 
-    private IntPtr FindPreferredContentHwnd()
+    private void DetachDockInputQueues()
     {
-        if (!CheckDockedWindowHealth())
+        if (!_inputQueuesAttached)
         {
-            return IntPtr.Zero;
+            _browserInputThreadId = 0;
+            return;
         }
 
-        IntPtr preferred = IntPtr.Zero;
-        long preferredScore = long.MinValue;
-        string preferredClass = string.Empty;
-
-        NativeMethods.EnumChildWindows(
-            _browserHwnd,
-            (childHwnd, _) =>
-            {
-                if (!NativeMethods.IsWindow(childHwnd) || !NativeMethods.IsWindowVisible(childHwnd))
-                {
-                    return true;
-                }
-
-                var className = GetWindowClassName(childHwnd);
-                var area = 0L;
-                if (NativeMethods.GetWindowRect(childHwnd, out var rect))
-                {
-                    area = Math.Max(0L, (long)rect.Width * rect.Height);
-                }
-
-                var score = area;
-                if (className.Contains("MozillaCompositorWindowClass", StringComparison.OrdinalIgnoreCase))
-                {
-                    score += 10_000_000_000L;
-                }
-                else if (className.Contains("Mozilla", StringComparison.OrdinalIgnoreCase))
-                {
-                    score += 5_000_000_000L;
-                }
-
-                if (score > preferredScore)
-                {
-                    preferred = childHwnd;
-                    preferredScore = score;
-                    preferredClass = className;
-                }
-
-                return true;
-            },
-            IntPtr.Zero);
-
-        if (preferred == IntPtr.Zero)
-        {
-            RuntimeLog.Debug($"No visible Firefox child HWND selected for content focus. Falling back to root HWND=0x{_browserHwnd.ToInt64():X}.");
-            return _browserHwnd;
-        }
-
-        RuntimeLog.Debug($"Firefox content-focus target selected. RootHWND=0x{_browserHwnd.ToInt64():X}; TargetHWND=0x{preferred.ToInt64():X}; Class='{preferredClass}'; Score={preferredScore}");
-        return preferred;
-    }
-
-    private static string GetWindowClassName(IntPtr hwnd)
-    {
-        var builder = new StringBuilder(256);
-        return NativeMethods.GetClassName(hwnd, builder, builder.Capacity) > 0
-            ? builder.ToString()
-            : string.Empty;
+        var detached = NativeMethods.AttachThreadInput(_workspaceInputThreadId, _browserInputThreadId, false);
+        RuntimeLog.Info($"Persistent Firefox input bridge detached={detached}. WorkspaceThread={_workspaceInputThreadId}; BrowserThread={_browserInputThreadId}");
+        _inputQueuesAttached = false;
+        _browserInputThreadId = 0;
     }
 
     public async Task<bool> NavigateByKeyboardAsync(string url)
@@ -550,12 +488,9 @@ public sealed class BrowserDockHost : HwndHost
         SendVirtualKey(NativeMethods.VK_RETURN);
         await Task.Delay(120);
 
-        // Ctrl+L intentionally places Firefox keyboard focus in the address bar.
-        // Move Win32 focus back toward the Firefox content surface after navigation
-        // so later mouse clicks and text entry are not trapped in browser chrome.
-        FocusBrowserContent();
-
-        RuntimeLog.Info($"Browser keyboard navigation requested and content-focus recovery attempted. BrowserHWND=0x{_browserHwnd.ToInt64():X}; URL='{target}'");
+        // Firefox owns the post-navigation focus transition. Keep only the root input bridge alive;
+        // do not force focus into an internal Firefox child HWND.
+        RuntimeLog.Info($"Browser keyboard navigation requested. BrowserHWND=0x{_browserHwnd.ToInt64():X}; URL='{target}'");
         return true;
     }
 
@@ -656,6 +591,7 @@ public sealed class BrowserDockHost : HwndHost
 
     private void ClearDockState()
     {
+        DetachDockInputQueues();
         var previousBrowserHwnd = _browserHwnd;
         BrowserDockRegistry.Release(previousBrowserHwnd, this);
         _browserHwnd = IntPtr.Zero;

@@ -233,8 +233,8 @@ public partial class BrowserTile : UserControl
         try
         {
             Keyboard.ClearFocus();
-            BrowserHost.FocusBrowserContent();
-            SetStatus(BrowserHost.IsDocked ? "Web-content keyboard focus recovery requested for docked Firefox." : "Nothing is docked.");
+            BrowserHost.FocusBrowser();
+            SetStatus(BrowserHost.IsDocked ? "Firefox root keyboard focus recovery requested." : "Nothing is docked.");
         }
         catch (Exception ex)
         {

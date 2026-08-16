@@ -1,18 +1,17 @@
-fix: harden Workspace project UX and endpoint ID visibility in v0.0.6rc11
+fix: restore docked Firefox keyboard input and confirm New Workspace resets in v0.0.6rc12
 
 - continue the active v0.0.6 RC line without freezing or advancing the minor version
-- move the 64x64 Show IDs endpoint badge from an in-content WPF overlay into WPF-owned pane header chrome so hosted Firefox HWND airspace cannot hide Browser endpoint IDs
-- apply the same header-owned large endpoint badge pattern to File panes for consistent F1-F4 / B1-B8 behavior
-- highlight each Browser/File pane frame with its endpoint color while Show IDs is enabled and restore the neutral frame when IDs are hidden
-- keep compact endpoint badges permanently visible and preserve stable PaneId GUID routing identity independent of display color or layout position
-- disable automatic SDK SourceRevisionId suffixing in InformationalVersion so the title bar does not display +<commit-hash> metadata
-- defensively strip +metadata from AppInfo.DisplayVersion before presenting version text in the UI
-- stamp the active release as v0.0.6rc11 / 0.0.6-rc11 / FileVersion 0.0.6.11 from Directory.Build.props
-- make New Workspace a deterministic reset transaction on every invocation
-- clear the existing project path and panes, reset z-order, Show IDs and Auto Fit state, and reconstruct the default F1/F2 + B1-B4 Workspace on each New command
-- add explicit timestamped and reset-sequence status feedback so consecutive New Workspace commands are visibly acknowledged even when the resulting default layout looks identical
-- reapply Auto Fit and reset scroll offsets after a New Workspace reset settles on the WPF dispatcher
-- retain rc10 .aew Workspace project persistence, missing File-path Desktop fallback, Browser default-Google launch behavior, and exclusion of browser URL/session/cookie/password/credential state from project files
-- add regression checks for header-owned 64x64 endpoint badges, endpoint frame chrome, source-revision display suppression, and repeated New Workspace feedback
-- retain rc09/rc10 Auto Fit hardening, asynchronous Git decoration, Firefox launch ownership cleanup, native Windows Shell/TortoiseGit/7-Zip integration, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
-- update README, CHANGELOG, rc11 release notes, tests, and UI version description for v0.0.6rc11
+- stop normal Browser input handling from enumerating or forcing focus into guessed Firefox compositor/content child HWNDs
+- keep a persistent AttachThreadInput bridge between the WPF UI thread and the reparented Firefox root-window thread for the lifetime of each dock
+- establish the input bridge immediately after SetParent and release it when the browser is detached, lost, or the host is destroyed
+- let Firefox own its internal address-bar and web-content focus transitions after normal mouse clicks
+- keep TabIntoCore and the Focus toolbar action as minimal Firefox root-HWND recovery paths only
+- retain focus diagnostics for Workspace thread, Firefox thread, foreground HWND, previous/current focus HWND, and bridge state
+- make New Workspace use a dedicated confirmation path instead of silently returning true when the current Workspace is clean
+- show an explicit Create New / Cancel confirmation before resetting a clean Workspace
+- retain Save / Discard / Cancel semantics when New Workspace is invoked with unsaved changes
+- preserve deterministic New Workspace reset behavior, default F1/F2 + B1-B4 layout, Auto Fit state, Google Browser startup, and status feedback
+- add regression checks for the persistent root-thread input bridge, removal of internal child-HWND focus guessing, explicit New Workspace confirmation, and rc12 version metadata
+- stamp application/build/run/test metadata as v0.0.6rc12 / 0.0.6-rc12 / FileVersion 0.0.6.12 from Directory.Build.props
+- retain rc11 .aew Workspace persistence, 64x64 endpoint badges, compact version display, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
+- update README, CHANGELOG, rc12 release notes, tests, and UI/build metadata for v0.0.6rc12

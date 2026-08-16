@@ -803,7 +803,7 @@ public partial class MainWindow : Window
 
     private void NewWorkspaceButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmReplaceWorkspace())
+        if (!ConfirmCreateNewWorkspace())
         {
             SetWorkspaceStatus("New Workspace canceled; the current Workspace was left unchanged.");
             return;
@@ -1192,6 +1192,35 @@ public partial class MainWindow : Window
         WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
         WorkspaceScrollViewer.ScrollToVerticalOffset(0);
         UpdatePaneCounts();
+    }
+
+    private bool ConfirmCreateNewWorkspace()
+    {
+        if (_workspaceDirty)
+        {
+            var dirtyResult = MessageBox.Show(
+                this,
+                "The current Workspace has unsaved changes.\n\nSave changes before creating a new Workspace?",
+                "Create New Workspace",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            return dirtyResult switch
+            {
+                MessageBoxResult.Yes => SaveCurrentWorkspace(),
+                MessageBoxResult.No => true,
+                _ => false
+            };
+        }
+
+        var result = MessageBox.Show(
+            this,
+            "Create a new Workspace project?\n\nThe current Workspace layout will be reset to the default configuration.",
+            "Create New Workspace",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        return result == MessageBoxResult.Yes;
     }
 
     private bool ConfirmReplaceWorkspace()

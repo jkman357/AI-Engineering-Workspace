@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc11**
+Current version: **v0.0.6rc12**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -32,6 +32,16 @@ Unified Dynamic Workspace
    └─ future context/message-routing target
 ```
 
+
+
+## v0.0.6rc12 — Browser Keyboard Input + New Workspace Confirmation
+
+This RC addresses two Windows-validation blockers without advancing the active v0.0.6 line.
+
+- Docked Firefox input no longer relies on selecting or forcing focus into guessed compositor/content child HWNDs. `BrowserDockHost` keeps a dock-lifetime `AttachThreadInput` bridge between the Workspace UI thread and the reparented Firefox root-window thread, then leaves Firefox to manage its own internal address-bar/page focus.
+- The Focus toolbar button is root-HWND recovery only. The primary acceptance criterion is normal direct typing after clicking the Firefox address bar or a web-page text field, without pressing Focus first.
+- `New Workspace` now always asks for confirmation. A clean Workspace gets an explicit Create/Cancel prompt; a dirty Workspace gets Save / Discard / Cancel semantics before reset.
+- The rc11 Workspace-project persistence, endpoint badges, compact version display, native Shell/Git integration, and security boundaries remain in place.
 
 ## v0.0.6rc11 — Workspace Project UX + Endpoint Badge Fix
 
@@ -429,6 +439,18 @@ Launcher/application diagnostics are written under `logs\runtime\` when logging 
 6. Modify pane position/size/path after saving and confirm the title gains `*`. Verify New/Open/application Close prompts allow Save / Don't Save / Cancel behavior.
 7. Re-run rc09 review-hardening checks: Auto Fit must not overlap, Git decoration must remain asynchronous, and pending Firefox launch cleanup must not orphan a Workspace-launched window.
 8. Check executable/file/log metadata: rc11 artifacts must identify `v0.0.6rc11` / `0.0.6.11` without a visible `+<source-revision>` suffix.
+
+
+## v0.0.6rc12 validation focus
+
+1. Run `build.cmd`, then `test.cmd`; both must return exit code 0 before GUI testing.
+2. Launch + Dock Firefox, click the Firefox address bar, and type normal text. Input must remain in Firefox without pressing the Workspace Focus button.
+3. Click a web-page text field (for example Google search or a ChatGPT prompt) and type. Keyboard input must be accepted normally.
+4. Click Workspace controls, then click back into Firefox and type again; the dock-lifetime input bridge must allow Firefox to reclaim internal focus naturally.
+5. Use the Focus toolbar action only as recovery and verify it targets the Firefox root window rather than a guessed internal child HWND.
+6. With a clean Workspace, press New Workspace and verify an explicit confirmation appears before reset. Repeat New Workspace and verify the confirmation appears every time.
+7. With unsaved changes, press New Workspace and verify Save / Discard / Cancel semantics before reset.
+8. Re-run rc11 Workspace Save/Load and endpoint-badge checks; rc12 must not regress those behaviors.
 
 ## Current limits / non-goals
 

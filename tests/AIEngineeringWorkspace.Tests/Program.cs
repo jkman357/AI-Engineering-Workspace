@@ -7,11 +7,13 @@ Run("AutoFit_12Panes_NoOverlap", TestAutoFit12PanesNoOverlap);
 Run("AutoFit_SinglePane_FillsViewport", TestSinglePaneFill);
 Run("GitPorcelain_Rename_UsesDestinationPath", TestRenameUsesDestination);
 Run("GitBadge_Xaml_CollapsesEmptyGlyph", TestGitBadgeCollapsed);
-Run("Version_SingleSource_IsRc11", TestVersionSource);
+Run("Version_SingleSource_IsRc12", TestVersionSource);
 Run("WorkspaceProject_RoundTrip_PreservesLayoutAndFilePath", TestWorkspaceProjectRoundTrip);
 Run("EndpointBadge_ShowIds_Uses64x64Header", TestEndpointBadgeSize);
 Run("Version_DisplaySuppressesSourceRevision", TestVersionDisplaySuppressesSourceRevision);
 Run("NewWorkspace_RepeatedResetHasVisibleFeedback", TestNewWorkspaceFeedback);
+Run("BrowserInput_UsesPersistentRootThreadBridge", TestBrowserInputBridge);
+Run("NewWorkspace_AlwaysConfirmsBeforeReset", TestNewWorkspaceConfirmation);
 
 if (failures.Count == 0)
 {
@@ -88,9 +90,9 @@ void TestVersionSource()
     var propsPath = Path.Combine(root, "Directory.Build.props");
     var doc = XDocument.Load(propsPath);
     var values = doc.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value, StringComparer.OrdinalIgnoreCase);
-    Assert(values["WorkspaceVersionLabel"] == "v0.0.6rc11", "WorkspaceVersionLabel drift");
-    Assert(values["Version"] == "0.0.6-rc11", "package Version drift");
-    Assert(values["FileVersion"] == "0.0.6.11", "FileVersion drift");
+    Assert(values["WorkspaceVersionLabel"] == "v0.0.6rc12", "WorkspaceVersionLabel drift");
+    Assert(values["Version"] == "0.0.6-rc12", "package Version drift");
+    Assert(values["FileVersion"] == "0.0.6.12", "FileVersion drift");
 }
 
 void TestWorkspaceProjectRoundTrip()
@@ -101,7 +103,7 @@ void TestWorkspaceProjectRoundTrip()
         var paneId = Guid.NewGuid();
         var project = new WorkspaceProjectDocument
         {
-            ApplicationVersion = "v0.0.6rc11",
+            ApplicationVersion = "v0.0.6rc12",
             LayoutMode = WorkspaceLayoutMode.FreeLayout,
             ShowEndpointIds = true,
             Panes = new List<WorkspacePaneState>
@@ -177,6 +179,25 @@ void TestNewWorkspaceFeedback()
     Assert(main.Contains("ResetWorkspaceToDefaults()", StringComparison.Ordinal), "New Workspace reset helper missing");
     Assert(main.Contains("_newWorkspaceResetCount++", StringComparison.Ordinal), "repeated New Workspace reset sequence feedback missing");
     Assert(main.Contains("New Workspace project created at", StringComparison.Ordinal), "visible New Workspace timestamp feedback missing");
+}
+
+void TestBrowserInputBridge()
+{
+    var root = FindRepositoryRoot();
+    var host = File.ReadAllText(Path.Combine(root, "src", "AIEngineeringWorkspace.App", "Controls", "BrowserDockHost.cs"));
+    Assert(host.Contains("Persistent Firefox input bridge attached", StringComparison.Ordinal), "persistent Firefox input bridge logging missing");
+    Assert(host.Contains("AttachThreadInput(_workspaceInputThreadId, _browserInputThreadId, true)", StringComparison.Ordinal), "dock-lifetime AttachThreadInput bridge missing");
+    Assert(host.Contains("AttachThreadInput(_workspaceInputThreadId, _browserInputThreadId, false)", StringComparison.Ordinal), "dock-lifetime input bridge detach missing");
+    Assert(!host.Contains("FindPreferredContentHwnd", StringComparison.Ordinal), "Firefox internal child-HWND focus guessing must not be used in rc12");
+}
+
+void TestNewWorkspaceConfirmation()
+{
+    var root = FindRepositoryRoot();
+    var main = File.ReadAllText(Path.Combine(root, "src", "AIEngineeringWorkspace.App", "MainWindow.xaml.cs"));
+    Assert(main.Contains("ConfirmCreateNewWorkspace()", StringComparison.Ordinal), "New Workspace explicit confirmation helper missing");
+    Assert(main.Contains("Create a new Workspace project?", StringComparison.Ordinal), "clean Workspace confirmation prompt missing");
+    Assert(main.Contains("Save changes before creating a new Workspace?", StringComparison.Ordinal), "dirty Workspace Save/Discard/Cancel prompt missing");
 }
 
 string FindRepositoryRoot()

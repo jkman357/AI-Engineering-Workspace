@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.6rc12
+
+- keep a persistent input-queue bridge between the WPF UI thread and the docked Firefox root-window thread for the lifetime of the dock;
+- stop normal input routing from guessing or forcing focus into Firefox internal compositor/content child HWNDs;
+- keep the Focus action as explicit Firefox root-HWND recovery only;
+- make New Workspace present confirmation on every invocation, even when the current Workspace is clean;
+- keep dirty Workspace Save / Discard / Cancel handling before reset;
+- update regression checks for the root-thread input bridge, removal of child-HWND focus guessing, explicit New Workspace confirmation, and rc12 version authority;
+- stamp application/build/test metadata as `v0.0.6rc12` / `0.0.6.12`;
+- retain rc11 Workspace project, endpoint badge, version-display, Shell/Git, diagnostics/security, and MIT-license behavior.
+
 ## v0.0.6rc11
 
 - move the 64×64 Show IDs endpoint badge into WPF-owned pane header chrome so Browser badges remain visible above the hosted Firefox HWND airspace boundary;
