@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.6rc15
+
+- restore Firefox root-HWND keyboard focus after Browser Workspace maximize/restore transitions;
+- defer focus recovery until WPF visibility/geometry changes and native Firefox repaint have completed;
+- clear WPF button focus before the transactional Firefox root focus handoff;
+- keep ordinary multi-Browser English/number and Zhuyin behavior from rc14 unchanged;
+- retain rc14 read-only HKL / GUI-thread / IME diagnostics without synthesizing IME messages or forcing keyboard-layout changes;
+- add regression coverage and a real-machine gate for normal, maximized, and restored Browser input without using the Focus button;
+- stamp application/build/run/test metadata as `v0.0.6rc15` / `0.0.6-rc15` / FileVersion `0.0.6.15`;
+- continue the active v0.0.6 RC line without freezing the release.
+
 ## v0.0.6rc14
 
 - continue the active v0.0.6 RC line without freezing the release;

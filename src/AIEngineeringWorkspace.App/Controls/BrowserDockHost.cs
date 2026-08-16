@@ -238,10 +238,15 @@ public sealed class BrowserDockHost : HwndHost
         if (immediate) NativeMethods.UpdateWindow(hwnd);
     }
 
-    public void FocusBrowser()
+    public void FocusBrowser() => FocusBrowser("BrowserDockHost.FocusBrowser");
+
+    public void FocusBrowser(string reason)
     {
         if (!CheckDockedWindowHealth()) return;
-        FirefoxInputCoordinator.FocusRoot(_browserHwnd, _workspaceInputThreadId, "BrowserDockHost.FocusBrowser");
+        FirefoxInputCoordinator.FocusRoot(
+            _browserHwnd,
+            _workspaceInputThreadId,
+            string.IsNullOrWhiteSpace(reason) ? "BrowserDockHost.FocusBrowser" : reason);
     }
 
     public void FocusBrowserContent() => FocusBrowser();

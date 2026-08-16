@@ -1,6 +1,6 @@
 # AI Engineering Workspace
 
-Current version: **v0.0.6rc14**
+Current version: **v0.0.6rc15**
 
 Repository: `jkman357/AI-Engineering-Workspace`
 
@@ -42,6 +42,21 @@ Unified Dynamic Workspace
    ├─ human-readable B#/F# alias
    └─ future context/message-routing target
 ```
+
+## v0.0.6rc15 — Browser Maximize / Restore Focus Recovery
+
+Real-machine rc14 validation showed normal multi-Browser input working across B1-B8, including English/number input and Zhuyin composition, while the Browser Workspace maximize mode (`□`) could leave both ASCII and IME input unable to reach the docked Firefox window.
+
+rc15 keeps the rc14 input-language/IME diagnostics unchanged and treats maximize/restore as a separate WPF-owned focus transition:
+
+- after maximize geometry/visibility changes complete, schedule a deferred Firefox root-HWND focus recovery at `DispatcherPriority.ContextIdle`;
+- after explicit restore from the Browser maximize button, restore layout first and then perform the same deferred root focus recovery;
+- clear WPF keyboard focus from the maximize/restore button before handing focus to Firefox;
+- refit and repaint the hosted Firefox HWND immediately before the deferred focus handoff;
+- retain `FirefoxInputCoordinator` as the single transactional `AttachThreadInput` / `SetFocus` authority;
+- do not synthesize IME composition messages or force input-language state.
+
+The manual acceptance gate covers normal, maximized, and restored Browser input for both English/number and Zhuyin without requiring the `⌖` Focus recovery button.
 
 ## v0.0.6rc14 — Firefox IME / Input-Language Diagnostics
 
@@ -100,7 +115,7 @@ Logs are written under `logs\build`, `logs\test`, and `logs\runtime`.
 
 ## Source package convention
 
-Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc14.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
+Release-candidate source archives carry the version in the ZIP filename only, for example `AI-Engineering-Workspace_v0.0.6rc15.zip`. The extracted project root remains exactly `AI-Engineering-Workspace\` so repository paths, scripts, comparisons, and command-line workflows do not change between RC packages.
 
 ## Workspace project (`.aew`)
 

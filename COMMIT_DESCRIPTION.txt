@@ -1,19 +1,19 @@
-diagnostic: trace Firefox IME and input-language state in v0.0.6rc14
+fix: restore Firefox input after Browser maximize and restore in v0.0.6rc15
 
 * continue the active v0.0.6 RC line without freezing or advancing the minor version
-* retain rc13 centralized transactional Firefox root-HWND focus handoff for ordinary keyboard input
-* treat real-machine English/number PASS versus Zhuyin/IME FAIL as a separate input-language/composition investigation path
-* add GetKeyboardLayout diagnostics for both the WPF Workspace UI thread and the docked Firefox window thread
-* add GetGUIThreadInfo diagnostics for Firefox active HWND, focus HWND, caret HWND, foreground HWND, PID, and input thread
-* sample each docked Browser from the existing one-second health loop and emit diagnostics only when observable input state changes
-* record WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE when they reach the WPF MainWindow or WPF-owned Browser host HWND
-* record WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_IME_COMPOSITION, and WM_IME_ENDCOMPOSITION on the observable WPF-side HWND boundaries
-* expand Firefox focus-handoff diagnostics with Workspace/Firefox HKL values before and after SetFocus plus GUI-thread focus evidence
-* deliberately do not synthesize IME composition messages, call ActivateKeyboardLayout, or force a keyboard-layout change into Firefox before evidence identifies the failing boundary
-* add regression checks for HKL/GUI-thread P/Invokes, input-language/IME message instrumentation, periodic state-transition diagnostics, and the read-only rc14 investigation policy
-* document a Windows manual PASS/FAIL gate covering English/number input, English-to-Zhuyin switching, Zhuyin composition, return to English/number input, and runtime-log capture
-* stamp application/build/run/test metadata as v0.0.6rc14 / 0.0.6-rc14 / FileVersion 0.0.6.14 from Directory.Build.props
-* retain rc12 explicit New Workspace confirmation and Save / Discard / Cancel behavior for unsaved changes
-* retain .aew Workspace persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google Browser startup, endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, diagnostics/security wording, standard-user design, API-free architecture, and the MIT License unchanged
-* preserve the source packaging convention: version only in the ZIP filename and extracted root fixed as AI-Engineering-Workspace\
-* update README, CHANGELOG, rc14 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc14
+* retain rc14 multi-Browser English/number and Zhuyin input behavior and its read-only IME/input-language diagnostics
+* treat Browser Workspace maximize/restore as a separate WPF-owned focus transition rather than changing the general Firefox keyboard or IME architecture
+* defer Firefox root-HWND focus recovery until maximize visibility/geometry changes have completed
+* refit and final-repaint the hosted Firefox HWND before returning keyboard focus after a maximize/restore transition
+* clear WPF keyboard focus from the maximize/restore button before handing focus back to Firefox
+* route maximize/restore recovery through the existing centralized FirefoxInputCoordinator transactional AttachThreadInput + SetFocus path
+* add reasoned BrowserDockHost root-focus recovery so runtime diagnostics identify MaximizeCompleted and RestoreCompleted transitions
+* request focus restoration only for explicit Browser maximize/restore actions, avoiding unintended Browser focus theft when maximize state is cleared as a side effect of Add, layout-mode, or save operations
+* keep the Focus toolbar action as recovery/diagnostic only and do not require it for normal, maximized, or restored Browser typing
+* keep Firefox child-HWND guessing removed and do not synthesize WM_IME_COMPOSITION, activate keyboard layouts, or force Firefox internal IME state
+* add regression checks for deferred ContextIdle focus recovery, WPF focus release, maximize/restore reason diagnostics, and centralized root-HWND handoff
+* document a real-machine PASS gate for B1/B3 normal, maximize, and restore English/number + Zhuyin input plus cross-pane maximize/restore switching
+* stamp application/build/run/test metadata as v0.0.6rc15 / 0.0.6-rc15 / FileVersion 0.0.6.15 from Directory.Build.props
+* retain New Workspace confirmation, .aew persistence, F1/F2 + B1-B4 defaults, Auto Fit, Google startup, endpoint badges, native Windows Shell/TortoiseGit/7-Zip integration, asynchronous Git decoration, Firefox launch ownership cleanup, security/privacy wording, standard-user design, API-free architecture, and the MIT License unchanged
+* preserve source packaging: version in ZIP filename only and extracted root fixed as AI-Engineering-Workspace\
+* update README, CHANGELOG, rc15 release notes, regression tests, commit description, and UI/build metadata for v0.0.6rc15

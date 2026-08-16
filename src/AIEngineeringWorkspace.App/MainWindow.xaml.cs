@@ -41,7 +41,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = $"AI Engineering Workspace — {AppInfo.DisplayVersion}";
-        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Firefox IME / Input-Language Diagnostics";
+        VersionTextBlock.Text = $"{AppInfo.DisplayVersion} — Browser Maximize / Restore Focus Recovery";
         SourceInitialized += (_, _) => InstallInputMessageDiagnostics();
         _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _healthTimer.Tick += (_, _) => { foreach (var tile in _browserPanes.ToArray()) tile.CheckHealth(); };
@@ -182,10 +182,66 @@ public partial class MainWindow : Window
 
     private void ToggleBrowserPaneMaximize(BrowserTile tile)
     {
-        if(!_browserPanes.Contains(tile))return;if(ReferenceEquals(_maximizedPane,tile)){RestoreMaximizedPaneIfNeeded();return;}RestoreMaximizedPaneIfNeeded();_maximizedPane=tile;_maximizedPanePosition=GetPanePosition(tile);_maximizedPaneSize=new Size(double.IsNaN(tile.Width)?tile.ActualWidth:tile.Width,double.IsNaN(tile.Height)?tile.ActualHeight:tile.Height);
-        foreach(var pane in GetAllPanes())pane.Visibility=ReferenceEquals(pane,tile)?Visibility.Visible:Visibility.Collapsed;var vw=Math.Max(900,WorkspaceScrollViewer.ViewportWidth>1?WorkspaceScrollViewer.ViewportWidth-4:WorkspaceScrollViewer.ActualWidth-8);var vh=Math.Max(560,WorkspaceScrollViewer.ViewportHeight>1?WorkspaceScrollViewer.ViewportHeight-4:WorkspaceScrollViewer.ActualHeight-8);WorkspaceCanvas.Width=vw;WorkspaceCanvas.Height=vh;SetPanePosition(tile,new Point(PaneGap,PaneGap));tile.Width=Math.Max(tile.MinWidth,vw-PaneGap*2);tile.Height=Math.Max(tile.MinHeight,vh-PaneGap*2);tile.SetMaximizedState(true);tile.FitBrowserToPane();BringToFront(tile);WorkspaceScrollViewer.ScrollToHorizontalOffset(0);WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+        if(!_browserPanes.Contains(tile))return;
+        if(ReferenceEquals(_maximizedPane,tile))
+        {
+            RestoreMaximizedPaneIfNeeded(true,$"{tile.Identity.Alias}.RestoreCompleted");
+            return;
+        }
+
+        RestoreMaximizedPaneIfNeeded();
+        _maximizedPane=tile;
+        _maximizedPanePosition=GetPanePosition(tile);
+        _maximizedPaneSize=new Size(double.IsNaN(tile.Width)?tile.ActualWidth:tile.Width,double.IsNaN(tile.Height)?tile.ActualHeight:tile.Height);
+        foreach(var pane in GetAllPanes())pane.Visibility=ReferenceEquals(pane,tile)?Visibility.Visible:Visibility.Collapsed;
+        var vw=Math.Max(900,WorkspaceScrollViewer.ViewportWidth>1?WorkspaceScrollViewer.ViewportWidth-4:WorkspaceScrollViewer.ActualWidth-8);
+        var vh=Math.Max(560,WorkspaceScrollViewer.ViewportHeight>1?WorkspaceScrollViewer.ViewportHeight-4:WorkspaceScrollViewer.ActualHeight-8);
+        WorkspaceCanvas.Width=vw;
+        WorkspaceCanvas.Height=vh;
+        SetPanePosition(tile,new Point(PaneGap,PaneGap));
+        tile.Width=Math.Max(tile.MinWidth,vw-PaneGap*2);
+        tile.Height=Math.Max(tile.MinHeight,vh-PaneGap*2);
+        tile.SetMaximizedState(true);
+        tile.FitBrowserToPane();
+        BringToFront(tile);
+        WorkspaceScrollViewer.ScrollToHorizontalOffset(0);
+        WorkspaceScrollViewer.ScrollToVerticalOffset(0);
+        ScheduleBrowserFocusAfterLayout(tile,$"{tile.Identity.Alias}.MaximizeCompleted");
     }
-    private void RestoreMaximizedPaneIfNeeded(){if(_maximizedPane is null)return;var pane=_maximizedPane;_maximizedPane=null;foreach(var item in GetAllPanes())item.Visibility=Visibility.Visible;if(pane is BrowserTile browser)browser.SetMaximizedState(false);if(_autoFitLayout)ApplyAutoFitLayout();else if(GetAllPanes().Contains(pane)){SetPanePosition(pane,_maximizedPanePosition);pane.Width=Math.Max(pane.MinWidth,_maximizedPaneSize.Width);pane.Height=Math.Max(pane.MinHeight,_maximizedPaneSize.Height);EnsureCanvasBounds(pane);if(pane is BrowserTile b)b.FitBrowserToPane();}}
+
+    private void RestoreMaximizedPaneIfNeeded(bool restoreBrowserFocus=false,string? focusReason=null)
+    {
+        if(_maximizedPane is null)return;
+        var pane=_maximizedPane;
+        _maximizedPane=null;
+        foreach(var item in GetAllPanes())item.Visibility=Visibility.Visible;
+        if(pane is BrowserTile browser)browser.SetMaximizedState(false);
+        if(_autoFitLayout)ApplyAutoFitLayout();
+        else if(GetAllPanes().Contains(pane))
+        {
+            SetPanePosition(pane,_maximizedPanePosition);
+            pane.Width=Math.Max(pane.MinWidth,_maximizedPaneSize.Width);
+            pane.Height=Math.Max(pane.MinHeight,_maximizedPaneSize.Height);
+            EnsureCanvasBounds(pane);
+            if(pane is BrowserTile b)b.FitBrowserToPane();
+        }
+
+        if(restoreBrowserFocus && pane is BrowserTile restoredBrowser)
+            ScheduleBrowserFocusAfterLayout(restoredBrowser,focusReason??$"{restoredBrowser.Identity.Alias}.RestoreCompleted");
+    }
+
+    private void ScheduleBrowserFocusAfterLayout(BrowserTile tile,string reason)
+    {
+        if(!_browserPanes.Contains(tile)||!tile.HasDockedWindow)return;
+        RuntimeLog.Info($"[{tile.Identity.Alias}] Scheduling deferred Firefox focus recovery after Workspace layout transition. Reason='{reason}'");
+        Dispatcher.InvokeAsync(() =>
+        {
+            if(!_browserPanes.Contains(tile)||tile.Visibility!=Visibility.Visible||!tile.HasDockedWindow)return;
+            tile.FitBrowserToPane();
+            tile.FinalizeBrowserRepaint();
+            tile.RecoverBrowserFocusAfterLayout(reason);
+        },DispatcherPriority.ContextIdle);
+    }
     private void ClearMaximizedPaneState(BrowserTile tile){if(!ReferenceEquals(_maximizedPane,tile))return;_maximizedPane=null;tile.SetMaximizedState(false);foreach(var p in GetAllPanes())p.Visibility=Visibility.Visible;}
 
     private Point FindFreePosition(double width,double height){const double step=36;var sw=Math.Max(WorkspaceCanvas.Width,1200);var sh=Math.Max(WorkspaceCanvas.Height,700);for(var y=PaneGap;y<=sh;y+=step)for(var x=PaneGap;x<=sw;x+=step){var candidate=new Rect(x,y,width,height);if(GetAllPanes().All(p=>!InflateRect(GetPaneRect(p),PaneGap).IntersectsWith(candidate)))return new Point(x,y);}WorkspaceCanvas.Height=sh+height+PaneGap*2;return new Point(PaneGap,sh+PaneGap);}
